@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
+	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -20,7 +20,7 @@ func NewExampleDataSource() datasource.DataSource {
 
 // ExampleDataSource defines the data source implementation.
 type ExampleDataSource struct {
-	client *http.Client
+	client *fastly.APIClient
 }
 
 // ExampleDataSourceModel describes the data source data model.
@@ -57,12 +57,12 @@ func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.Config
 		return
 	}
 
-	client, ok := req.ProviderData.(*http.Client)
+	client, ok := req.ProviderData.(*fastly.APIClient)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *fastly.APIClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
