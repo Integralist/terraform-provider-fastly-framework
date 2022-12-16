@@ -60,6 +60,7 @@ func (p *FastlyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 func (p *FastlyProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
+		NewServiceVCLResource,
 	}
 }
 
