@@ -30,7 +30,7 @@ type ExampleResource struct {
 // ExampleResourceModel describes the resource data model.
 type ExampleResourceModel struct {
 	ConfigurableAttribute types.String `tfsdk:"configurable_attribute"`
-	Id                    types.String `tfsdk:"id"`
+	ID                    types.String `tfsdk:"id"`
 }
 
 func (r *ExampleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -98,7 +98,7 @@ func (r *ExampleResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// For the purposes of this example code, hardcoding a response value to
 	// save into the Terraform state.
-	data.Id = types.StringValue("example-id")
+	data.ID = types.StringValue("example-id")
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log
