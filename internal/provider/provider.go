@@ -2,8 +2,8 @@ package provider
 
 import (
 	"context"
-	"net/http"
 
+	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -56,7 +56,9 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 	// if data.Endpoint.IsNull() { /* ... */ }
 
 	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	cfg := fastly.NewConfiguration()
+	client := fastly.NewAPIClient(cfg)
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
