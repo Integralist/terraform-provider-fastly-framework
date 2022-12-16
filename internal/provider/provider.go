@@ -27,12 +27,12 @@ type FastlyProviderModel struct {
 	Endpoint types.String `tfsdk:"endpoint"`
 }
 
-func (p *FastlyProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *FastlyProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "fastly"
 	resp.Version = p.version
 }
 
-func (p *FastlyProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *FastlyProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
@@ -63,13 +63,13 @@ func (p *FastlyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	resp.ResourceData = client
 }
 
-func (p *FastlyProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *FastlyProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
 	}
 }
 
-func (p *FastlyProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *FastlyProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
 	}
