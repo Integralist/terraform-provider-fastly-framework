@@ -1,4 +1,4 @@
-module github.com/hashicorp/terraform-provider-scaffolding-framework
+module github.com/integralist/terraform-provider-fastly-framework
 
 go 1.18
 
