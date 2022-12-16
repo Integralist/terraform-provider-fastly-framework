@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Ensure FastlyProvider satisfies various provider interfaces.
@@ -23,9 +22,7 @@ type FastlyProvider struct {
 }
 
 // FastlyProviderModel describes the provider data model.
-type FastlyProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
-}
+type FastlyProviderModel struct{}
 
 func (p *FastlyProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "fastly"
@@ -35,10 +32,7 @@ func (p *FastlyProvider) Metadata(_ context.Context, _ provider.MetadataRequest,
 func (p *FastlyProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
-			},
+			// N/A
 		},
 	}
 }
