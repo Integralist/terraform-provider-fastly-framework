@@ -7,4 +7,8 @@ TEST_COMMAND ?= go test
 testacc:
 	TF_ACC=1 $(TEST_COMMAND) ./... -v $(TESTARGS) -timeout 120m
 
-.PHONY: all clean default test testacc
+# Generate documentation
+docs:
+	go generate ./...
+
+.PHONY: all clean default docs test testacc
