@@ -33,10 +33,11 @@ type ServiceVCLResource struct {
 
 // ServiceVCLResourceModel describes the resource data model.
 type ServiceVCLResourceModel struct {
-	Force types.Bool   `tfsdk:"force"`
-	ID    types.String `tfsdk:"id"`
-	Name  types.String `tfsdk:"name"`
-	Reuse types.Bool   `tfsdk:"reuse"`
+	Domain types.Set    `tfsdk:"domain"`
+	Force  types.Bool   `tfsdk:"force"`
+	ID     types.String `tfsdk:"id"`
+	Name   types.String `tfsdk:"name"`
+	Reuse  types.Bool   `tfsdk:"reuse"`
 }
 
 func (r *ServiceVCLResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -67,6 +68,23 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"reuse": schema.BoolAttribute{
 				MarkdownDescription: "Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`",
 				Optional:            true,
+			},
+		},
+
+		Blocks: map[string]schema.Block{
+			"domain": schema.SetNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"comment": schema.StringAttribute{
+							MarkdownDescription: "An optional comment about the domain",
+							Optional:            true,
+						},
+						"name": schema.StringAttribute{
+							MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
+							Required:            true,
+						},
+					},
+				},
 			},
 		},
 	}

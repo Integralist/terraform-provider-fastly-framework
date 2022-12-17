@@ -19,6 +19,7 @@ func TestAccServiceVCLResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "id", "example-id"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "1"),
 				),
 			},
 			// ImportState testing
@@ -30,7 +31,7 @@ func TestAccServiceVCLResource(t *testing.T) {
 				// example code does not have an actual upstream service.
 				// Once the Read method is able to refresh information from
 				// the upstream service, this can be removed.
-				ImportStateVerifyIgnore: []string{"force", "name"},
+				ImportStateVerifyIgnore: []string{"domain", "force", "name"},
 			},
 			// Update and Read testing
 			{
@@ -51,6 +52,10 @@ func testAccServiceVCLResourceConfig(force bool) string {
 resource "fastly_service_vcl" "test" {
   name = "%s"
   force = %t
+
+  domain {
+    name = "%s.example.com"
+  }
 }
-`, name, force)
+`, name, force, name)
 }
