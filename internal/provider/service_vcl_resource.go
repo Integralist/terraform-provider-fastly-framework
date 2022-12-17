@@ -40,11 +40,11 @@ type ServiceVCLResourceModel struct {
 	Reuse  types.Bool   `tfsdk:"reuse"`
 }
 
-func (r *ServiceVCLResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service_vcl"
 }
 
-func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: "Example resource",
@@ -90,7 +90,7 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 	}
 }
 
-func (r ServiceVCLResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
+func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		resourcevalidator.Conflicting(
 			path.MatchRoot("force"),
