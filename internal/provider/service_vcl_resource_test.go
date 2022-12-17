@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
@@ -14,9 +15,9 @@ func TestAccServiceVCLResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccServiceVCLResourceConfig("one"),
+				Config: testAccServiceVCLResourceConfig(true),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "configurable_attribute", "one"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "id", "example-id"),
 				),
 			},
@@ -29,13 +30,13 @@ func TestAccServiceVCLResource(t *testing.T) {
 				// example code does not have an actual upstream service.
 				// Once the Read method is able to refresh information from
 				// the upstream service, this can be removed.
-				ImportStateVerifyIgnore: []string{"configurable_attribute"},
+				ImportStateVerifyIgnore: []string{"force", "name"},
 			},
 			// Update and Read testing
 			{
-				Config: testAccServiceVCLResourceConfig("two"),
+				Config: testAccServiceVCLResourceConfig(false),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "configurable_attribute", "two"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
 				),
 			},
 			// Delete testing automatically occurs in TestCase
@@ -43,10 +44,13 @@ func TestAccServiceVCLResource(t *testing.T) {
 	})
 }
 
-func testAccServiceVCLResourceConfig(configurableAttribute string) string {
+func testAccServiceVCLResourceConfig(force bool) string {
+	name := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+
 	return fmt.Sprintf(`
 resource "fastly_service_vcl" "test" {
-  configurable_attribute = %[1]q
+  name = "%s"
+  force = %t
 }
-`, configurableAttribute)
+`, name, force)
 }

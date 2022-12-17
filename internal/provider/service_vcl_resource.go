@@ -31,8 +31,10 @@ type ServiceVCLResource struct {
 
 // ServiceVCLResourceModel describes the resource data model.
 type ServiceVCLResourceModel struct {
-	ConfigurableAttribute types.String `tfsdk:"configurable_attribute"`
-	ID                    types.String `tfsdk:"id"`
+	Force types.Bool   `tfsdk:"force"`
+	ID    types.String `tfsdk:"id"`
+	Name  types.String `tfsdk:"name"`
+	Reuse types.Bool   `tfsdk:"reuse"`
 }
 
 func (r *ServiceVCLResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -45,8 +47,8 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 		MarkdownDescription: "Example resource",
 
 		Attributes: map[string]schema.Attribute{
-			"configurable_attribute": schema.StringAttribute{
-				MarkdownDescription: "Example configurable attribute",
+			"force": schema.BoolAttribute{
+				MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the Service, set `force_destroy` to `true`. Default `false`",
 				Optional:            true,
 			},
 			"id": schema.StringAttribute{
@@ -55,6 +57,14 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"name": schema.StringAttribute{
+				MarkdownDescription: "The unique name for the Service to create",
+				Required:            true,
+			},
+			"reuse": schema.BoolAttribute{
+				MarkdownDescription: "Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`",
+				Optional:            true,
 			},
 		},
 	}
