@@ -50,7 +50,7 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 
 		Attributes: map[string]schema.Attribute{
 			"force": schema.BoolAttribute{
-				MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the Service, set `force_destroy` to `true`. Default `false`",
+				MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`",
 				Optional:            true,
 			},
 			"id": schema.StringAttribute{
@@ -61,7 +61,7 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 				},
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "The unique name for the Service to create",
+				MarkdownDescription: "The unique name for the service to create",
 				Required:            true,
 			},
 			"reuse": schema.BoolAttribute{
