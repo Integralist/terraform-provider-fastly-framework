@@ -1,3 +1,5 @@
+// NOTE: Refer to https://developer.hashicorp.com/terraform/plugin/framework
+
 package provider
 
 import (
