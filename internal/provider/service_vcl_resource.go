@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/fastly/fastly-go/fastly"
@@ -14,6 +15,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
+
+//go:embed docs/service_vcl.md
+var resourceDescription string
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
@@ -47,9 +51,7 @@ func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: `Provides a Fastly Service, representing the configuration for a website, app, API, or anything else to be served through Fastly. A Service encompasses Domains and Backends.
-
-The Service resource requires a domain name that is correctly set up to direct traffic to the Fastly service. See Fastly's guide on [Adding CNAME Records](https://docs.fastly.com/en/guides/adding-cname-records) on their documentation site for guidance.`,
+		MarkdownDescription: resourceDescription,
 
 		Attributes: map[string]schema.Attribute{
 			"force": schema.BoolAttribute{
