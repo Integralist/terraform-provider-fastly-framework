@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/fastly/fastly-go/fastly"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -16,8 +17,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &ServiceVCLResource{}
-	_ resource.ResourceWithImportState = &ServiceVCLResource{}
+	_ resource.Resource                     = &ServiceVCLResource{}
+	_ resource.ResourceWithImportState      = &ServiceVCLResource{}
+	_ resource.ResourceWithConfigValidators = &ServiceVCLResource{}
 )
 
 func NewServiceVCLResource() resource.Resource {
@@ -67,6 +69,15 @@ func (r *ServiceVCLResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Optional:            true,
 			},
 		},
+	}
+}
+
+func (r ServiceVCLResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.Conflicting(
+			path.MatchRoot("force"),
+			path.MatchRoot("reuse"),
+		),
 	}
 }
 
