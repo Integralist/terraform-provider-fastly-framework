@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 )
 
 //go:embed docs/service_vcl.md
@@ -32,16 +33,18 @@ func NewServiceVCLResource() resource.Resource {
 
 // ServiceVCLResource defines the resource implementation.
 type ServiceVCLResource struct {
-	client *fastly.APIClient
+	client    *fastly.APIClient
+	clientCtx context.Context
 }
 
 // ServiceVCLResourceModel describes the resource data model.
 type ServiceVCLResourceModel struct {
-	Domain types.Set    `tfsdk:"domain"`
-	Force  types.Bool   `tfsdk:"force"`
-	ID     types.String `tfsdk:"id"`
-	Name   types.String `tfsdk:"name"`
-	Reuse  types.Bool   `tfsdk:"reuse"`
+	Comment types.String `tfsdk:"comment"`
+	Domain  types.Set    `tfsdk:"domain"`
+	Force   types.Bool   `tfsdk:"force"`
+	ID      types.String `tfsdk:"id"`
+	Name    types.String `tfsdk:"name"`
+	Reuse   types.Bool   `tfsdk:"reuse"`
 }
 
 func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -54,6 +57,14 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		MarkdownDescription: resourceDescription,
 
 		Attributes: map[string]schema.Attribute{
+			"comment": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Description field for the service. Default `Managed by Terraform`",
+				Optional:            true,
+				PlanModifiers: []planmodifier.String{
+					helpers.StringDefaultModifier{Default: "Managed by Terraform"},
+				},
+			},
 			"force": schema.BoolAttribute{
 				MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`",
 				Optional:            true,
@@ -62,6 +73,8 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Computed:            true,
 				MarkdownDescription: "Example identifier",
 				PlanModifiers: []planmodifier.String{
+					// UseStateForUnknown is useful for reducing (known after apply) plan
+					// outputs for computed attributes which are known to not change over time.
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},

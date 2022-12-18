@@ -31,12 +31,13 @@ func TestAccServiceVCLResource(t *testing.T) {
 				// example code does not have an actual upstream service.
 				// Once the Read method is able to refresh information from
 				// the upstream service, this can be removed.
-				ImportStateVerifyIgnore: []string{"domain", "force", "name"},
+				ImportStateVerifyIgnore: []string{"comment", "domain", "force", "name"},
 			},
 			// Update and Read testing
 			{
 				Config: testAccServiceVCLResourceConfig(false),
 				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
 				),
 			},
