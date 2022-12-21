@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// stringDefaultModifier is a plan modifier that sets a default value for a
+// StringDefaultModifier is a plan modifier that sets a default value for a
 // types.StringType attribute when it is not configured. The attribute must be
 // marked as Optional and Computed. When setting the state during the resource
 // Create, Read, or Update methods, this default value must also be included or
