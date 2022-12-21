@@ -9,28 +9,28 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// StringDefaultModifier is a plan modifier that sets a default value for a
-// types.StringType attribute when it is not configured. The attribute must be
+// BoolDefaultModifier is a plan modifier that sets a default value for a
+// types.BoolType attribute when it is not configured. The attribute must be
 // marked as Optional and Computed.
-type StringDefaultModifier struct {
-	Default string
+type BoolDefaultModifier struct {
+	Default bool
 }
 
 // Description returns a plain text description of the validator's behavior, suitable for a practitioner to understand its impact.
-func (m StringDefaultModifier) Description(_ context.Context) string {
-	return fmt.Sprintf("If value is not configured, defaults to %s", m.Default)
+func (m BoolDefaultModifier) Description(_ context.Context) string {
+	return fmt.Sprintf("If value is not configured, defaults to %t", m.Default)
 }
 
 // MarkdownDescription returns a markdown formatted description of the validator's behavior, suitable for a practitioner to understand its impact.
-func (m StringDefaultModifier) MarkdownDescription(_ context.Context) string {
-	return fmt.Sprintf("If value is not configured, defaults to `%s`", m.Default)
+func (m BoolDefaultModifier) MarkdownDescription(_ context.Context) string {
+	return fmt.Sprintf("If value is not configured, defaults to `%t`", m.Default)
 }
 
-// PlanModifyString runs the logic of the plan modifier.
+// PlanModifyBool runs the logic of the plan modifier.
 // Access to the configuration, plan, and state is available in `req`, while
 // `resp` contains fields for updating the planned value, triggering resource
 // replacement, and returning diagnostics.
-func (m StringDefaultModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+func (m BoolDefaultModifier) PlanModifyBool(_ context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
 	// If the value is known, do not set default value.
 	//
 	// WARNING: There might be issues with this implementation.
@@ -39,5 +39,5 @@ func (m StringDefaultModifier) PlanModifyString(_ context.Context, req planmodif
 		return
 	}
 
-	resp.PlanValue = types.StringValue(m.Default)
+	resp.PlanValue = types.BoolValue(m.Default)
 }
