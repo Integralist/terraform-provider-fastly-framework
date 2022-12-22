@@ -15,4 +15,11 @@ testacc_logs:
 docs:
 	go generate ./...
 
+# Clean Fastly services that have leaked when running acceptance tests
+clean:
+	@if [ "$(SILENCE)" != "true" ]; then \
+		echo "WARNING: This will destroy infrastructure. Use only in development accounts."; \
+		fi
+	@fastly service list --token ${FASTLY_API_TOKEN} | grep -E '^tf\-' | awk '{print $$2}' | xargs -I % fastly service delete --token ${FASTLY_API_KEY} -f -s %
+
 .PHONY: all clean default docs test testacc testacc_logs
