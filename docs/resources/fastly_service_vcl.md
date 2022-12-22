@@ -24,6 +24,8 @@ The Service resource requires a domain name that is correctly set up to direct t
 
 ### Optional
 
+- `activate` (Boolean) Conditionally prevents the Service from being activated. The apply step will continue to create a new draft version but will not activate it if this is set to `false`. Default `true`
+- `comment` (String) Description field for the service. Default `Managed by Terraform`
 - `domain` (Block Set) (see [below for nested schema](#nestedblock--domain))
 - `force` (Boolean) Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`
 - `reuse` (Boolean) Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`
