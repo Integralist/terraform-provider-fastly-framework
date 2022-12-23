@@ -32,7 +32,9 @@ The Service resource requires a domain name that is correctly set up to direct t
 
 ### Read-Only
 
-- `id` (String) Example identifier
+- `id` (String) Alphanumeric string identifying the service
+- `last_active` (Number) The last 'active' service version (typically in-sync with `version` but not if `activate` is `false`)
+- `version` (Number) The latest version that the provider will clone from (typically in-sync with `last_active` but not if `activate` is `false`)
 
 <a id="nestedblock--domain"></a>
 ### Nested Schema for `domain`
