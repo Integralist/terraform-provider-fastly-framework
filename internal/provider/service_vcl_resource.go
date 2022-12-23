@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -36,19 +37,32 @@ func NewServiceVCLResource() resource.Resource {
 
 // ServiceVCLResource defines the resource implementation.
 type ServiceVCLResource struct {
-	client    *fastly.APIClient
+	// client is a preconfigured instance of the Fastly API client.
+	client *fastly.APIClient
+	// clientCtx contains the user's API token.
 	clientCtx context.Context
 }
 
 // ServiceVCLResourceModel describes the resource data model.
 type ServiceVCLResourceModel struct {
-	Activate types.Bool   `tfsdk:"activate"`
-	Comment  types.String `tfsdk:"comment"`
-	Domain   types.Set    `tfsdk:"domain"`
-	Force    types.Bool   `tfsdk:"force"`
-	ID       types.String `tfsdk:"id"`
-	Name     types.String `tfsdk:"name"`
-	Reuse    types.Bool   `tfsdk:"reuse"`
+	// Activate controls whether the service should be activated.
+	Activate types.Bool `tfsdk:"activate"`
+	// Comment is a description field for the service.
+	Comment types.String `tfsdk:"comment"`
+	// Domain is a block for the domain(s) associated with the service.
+	Domain types.Set `tfsdk:"domain"`
+	// Force ensures a service will be fully deleted upon `terraform destroy`.
+	Force types.Bool `tfsdk:"force"`
+	// ID is a unique ID for the service.
+	ID types.String `tfsdk:"id"`
+	// LastActive is the last known active service version.
+	LastActive types.Int64 `tfsdk:"last_active"`
+	// Name is the service name.
+	Name types.String `tfsdk:"name"`
+	// Reuse will not delete the service upon `terraform destroy`.
+	Reuse types.Bool `tfsdk:"reuse"`
+	// Version is the latest service version the provider will clone from.
+	Version types.Int64 `tfsdk:"version"`
 }
 
 func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -83,12 +97,16 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Example identifier",
+				MarkdownDescription: "Alphanumeric string identifying the service",
 				PlanModifiers: []planmodifier.String{
 					// UseStateForUnknown is useful for reducing (known after apply) plan
 					// outputs for computed attributes which are known to not change over time.
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"last_active": schema.Int64Attribute{
+				Computed:            true,
+				MarkdownDescription: "The last 'active' service version (typically in-sync with `version` but not if `activate` is `false`)",
 			},
 			"name": schema.StringAttribute{
 				MarkdownDescription: "The unique name for the service to create",
@@ -97,6 +115,10 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"reuse": schema.BoolAttribute{
 				MarkdownDescription: "Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`",
 				Optional:            true,
+			},
+			"version": schema.Int64Attribute{
+				Computed:            true,
+				MarkdownDescription: "The latest version that the provider will clone from (typically in-sync with `last_active` but not if `activate` is `false`)",
 			},
 		},
 
@@ -180,11 +202,35 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 
 	id, ok := clientResp.GetIDOk()
 	if !ok {
-		tflog.Trace(ctx, "Fastly ServiceAPI.CreateService error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", "No Service ID was returned")
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
 		return
 	}
 	data.ID = types.StringValue(*id)
+
+	versions, ok := clientResp.GetVersionsOk()
+	if !ok {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", "No Service versions returned")
+		return
+	}
+	version := versions[0].GetNumber()
+	data.Version = types.Int64Value(int64(version))
+
+	// NOTE: Update function doesn't have access to state, only plan data.
+	// This means we need to persist the service version to private state.
+	// But the interface means we must marshal data to []byte.
+	privateVersion := []byte(strconv.Itoa(int(version)))
+	resp.Private.SetKey(ctx, "version", privateVersion)
+
+	if data.Activate.ValueBool() {
+		data.LastActive = data.Version
+
+		// NOTE: Update function doesn't have access to state, only plan data.
+		// This means we need to persist the service version to private state.
+		// But the interface means we must marshal data to []byte.
+		resp.Private.SetKey(ctx, "last_active", privateVersion)
+	}
 
 	// TODO: Abstract domains (and other resources)
 	for _, domain := range data.Domain.Elements() {
@@ -205,8 +251,11 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 			return
 		}
 
-		// FIXME: The version number 1 needs to be the latest version or active.
-		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, *id, 1)
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, *id, int32(version))
 
 		if v, ok := dst["comment"]; ok && !v.IsNull() {
 			var dst string
@@ -244,7 +293,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	if data.Activate.ValueBool() {
-		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, *id, 1)
+		// FIXME: Need to check for changes + service already active.
+		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, *id, int32(version))
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
@@ -285,8 +335,30 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	data.ID = types.StringValue(clientResp.GetID())
 	data.Name = types.StringValue(clientResp.GetName())
 
+	// NOTE: When importing a service there is no prior 'version' in the state.
+	// So we presume the user wants to import the last active service version.
+	// Which we retrieve from the GetServiceDetail call.
+	var foundActive bool
+	versions := clientResp.GetVersions()
+	for _, version := range versions {
+		if version.GetActive() {
+			lastActive := int64(version.GetNumber())
+			data.Version = types.Int64Value(lastActive)
+			data.LastActive = types.Int64Value(lastActive)
+			foundActive = true
+			break
+		}
+	}
+
+	// NOTE: In case user imports service with no active versions, use latest.
+	if !foundActive {
+		version := int64(versions[0].GetNumber())
+		data.Version = types.Int64Value(version)
+		data.LastActive = types.Int64Value(version)
+	}
+
 	// TODO: Abstract domains (and other resources) and rename back to clientReq.
-	clientDomainReq := r.client.DomainAPI.ListDomains(r.clientCtx, clientResp.GetID(), 1)
+	clientDomainReq := r.client.DomainAPI.ListDomains(r.clientCtx, clientResp.GetID(), int32(data.Version.ValueInt64()))
 
 	// TODO: After abstraction rename back to clientResp.
 	clientDomainResp, httpResp, err := clientDomainReq.Execute()
@@ -396,8 +468,46 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	fmt.Printf("update plan: %+v\n", data)
+	version, diag := resp.Private.GetKey(ctx, "version")
 
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	i, err := strconv.Atoi(string(version))
+	if err != nil {
+		tflog.Trace(ctx, "Private data conversion error", map[string]any{"err": err})
+		resp.Diagnostics.AddError("Private data conversion error", fmt.Sprintf("Unable to convert data to int: %s", err))
+		return
+	}
+
+	// NOTE: Update function doesn't have access to state, only plan data.
+	// This means we needed to persist the service version (via Create) to private state.
+	// But the interface means we must marshal data from []byte.
+	data.Version = types.Int64Value(int64(i))
+
+	lastActive, diag := resp.Private.GetKey(ctx, "last_active")
+
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	active, err := strconv.Atoi(string(lastActive))
+	if err != nil {
+		tflog.Trace(ctx, "Private data conversion error", map[string]any{"err": err})
+		resp.Diagnostics.AddError("Private data conversion error", fmt.Sprintf("Unable to convert data to int: %s", err))
+		return
+	}
+
+	// NOTE: Update function doesn't have access to state, only plan data.
+	// This means we needed to persist the last active service version (via Create) to private state.
+	// But the interface means we must marshal data from []byte.
+	data.LastActive = types.Int64Value(int64(active))
+
+	// TODO: Implement Update logic
+	//
 	// clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, data.ID.ValueString())
 	//
 	// clientResp, httpResp, err := clientReq.Execute()
@@ -455,5 +565,9 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// TODO: req.ID needs to be checked for format.
+	// Typically just a Service ID but can also be <service id>@<service version>
+	// Refer to the original provider's implementation for details.
+
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
