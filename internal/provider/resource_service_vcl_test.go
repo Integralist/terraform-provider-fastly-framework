@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccServiceVCLResource(t *testing.T) {
+func TestAccResourceServiceVCL(t *testing.T) {
 	name := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 
 	resource.Test(t, resource.TestCase{
@@ -17,7 +17,7 @@ func TestAccServiceVCLResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccServiceVCLResourceConfig(name, false),
+				Config: testAccResourceServiceVCLConfig(name, false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "1"),
@@ -26,7 +26,7 @@ func TestAccServiceVCLResource(t *testing.T) {
 			// Update and Read testing
 			{
 				// IMPORTANT: Must set `force` to `true` so we can delete service.
-				Config: testAccServiceVCLResourceConfig(name, true),
+				Config: testAccResourceServiceVCLConfig(name, true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
@@ -49,7 +49,7 @@ func TestAccServiceVCLResource(t *testing.T) {
 	})
 }
 
-func testAccServiceVCLResourceConfig(name string, force bool) string {
+func testAccResourceServiceVCLConfig(name string, force bool) string {
 	return fmt.Sprintf(`
 resource "fastly_service_vcl" "test" {
   name = "%s"
