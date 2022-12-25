@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -217,19 +216,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	version := versions[0].GetNumber()
 	data.Version = types.Int64Value(int64(version))
 
-	// NOTE: Update function doesn't have access to state, only plan data.
-	// This means we need to persist the service version to private state.
-	// But the interface means we must marshal data to []byte.
-	privateVersion := []byte(strconv.Itoa(int(version)))
-	resp.Private.SetKey(ctx, "version", privateVersion)
-
 	if data.Activate.ValueBool() {
 		data.LastActive = data.Version
-
-		// NOTE: Update function doesn't have access to state, only plan data.
-		// This means we need to persist the service version to private state.
-		// But the interface means we must marshal data to []byte.
-		resp.Private.SetKey(ctx, "last_active", privateVersion)
 	}
 
 	// TODO: Abstract domains (and other resources)
@@ -460,6 +448,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *ServiceVCLResourceModel
+	var state *ServiceVCLResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -468,43 +457,21 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	version, diag := resp.Private.GetKey(ctx, "version")
+	// Read Terraform state data into the model so it can be compared against plan
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	i, err := strconv.Atoi(string(version))
-	if err != nil {
-		tflog.Trace(ctx, "Private data conversion error", map[string]any{"err": err})
-		resp.Diagnostics.AddError("Private data conversion error", fmt.Sprintf("Unable to convert data to int: %s", err))
-		return
-	}
+	// NOTE: The plan data doesn't contain computed attributes.
+	// So we need to read it from the current state.
+	data.Version = state.Version
+	data.LastActive = state.LastActive
 
-	// NOTE: Update function doesn't have access to state, only plan data.
-	// This means we needed to persist the service version (via Create) to private state.
-	// But the interface means we must marshal data from []byte.
-	data.Version = types.Int64Value(int64(i))
-
-	lastActive, diag := resp.Private.GetKey(ctx, "last_active")
-
-	resp.Diagnostics.Append(diag...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	active, err := strconv.Atoi(string(lastActive))
-	if err != nil {
-		tflog.Trace(ctx, "Private data conversion error", map[string]any{"err": err})
-		resp.Diagnostics.AddError("Private data conversion error", fmt.Sprintf("Unable to convert data to int: %s", err))
-		return
-	}
-
-	// NOTE: Update function doesn't have access to state, only plan data.
-	// This means we needed to persist the last active service version (via Create) to private state.
-	// But the interface means we must marshal data from []byte.
-	data.LastActive = types.Int64Value(int64(active))
+	// TODO: Implement full update logic.
+	// e.g. clone service version if there are domain updates.
+	// Compare state against the plan state to see what's changed.
 
 	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, data.ID.ValueString())
 
