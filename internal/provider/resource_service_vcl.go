@@ -506,16 +506,14 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// But the interface means we must marshal data from []byte.
 	data.LastActive = types.Int64Value(int64(active))
 
-	// TODO: Implement Update logic
-	//
-	// clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, data.ID.ValueString())
-	//
-	// clientResp, httpResp, err := clientReq.Execute()
-	// if err != nil {
-	// 	tflog.Trace(ctx, "Fastly ServiceAPI.UpdateService error", map[string]any{"http_resp": httpResp})
-	// 	resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
-	// 	return
-	// }
+	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, data.ID.ValueString())
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly ServiceAPI.UpdateService error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
+		return
+	}
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
