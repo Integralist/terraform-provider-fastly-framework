@@ -132,6 +132,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		},
 
 		// IMPORTANT: Hashicorp recommend switching to nested attributes.
+		// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#nested-attributes
 		Blocks: map[string]schema.Block{
 			"domain": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
@@ -427,8 +428,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	fmt.Printf("plan: %+v\n", plan)
-	fmt.Printf("state: %+v\n", state)
+	fmt.Printf("UPDATE plan: %+v\n", plan)
+	fmt.Printf("UPDATE state: %+v\n", state)
 
 	// NOTE: The plan data doesn't contain computed attributes.
 	// So we need to read it from the current state.
@@ -439,9 +440,17 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Other nested blocks will need a new service version.
 	var shouldClone bool
 
+	// FIXME: We need something like SetDiff from the original provider.
+	// We compare the plan set to the state set and determine what changed.
+	// e.g. 'added', 'modified', 'deleted' and calls relevant API.
+	// Needs a 'key' for each resource (sometimes 'name' but has to be unique).
+	//
+	// If plan 'key' exists in prior state, then it's modified.
+	// Otherwise resource is new.
+	// If state 'key' doesn't exist in plan, then it's deleted.
+
 	// NOTE: We have to manually track each resource in a nested set block.
 	// TODO: Abstract domain and other resources
-	// TODO: How to handle deleted resource?
 	for i := range plan.Domains {
 		planDomain := &plan.Domains[i]
 
@@ -451,14 +460,26 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
 		}
 
+		var foundDomain bool
 		for _, stateDomain := range state.Domains {
 			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
 				if !planDomain.Comment.Equal(stateDomain.Comment) || !planDomain.Name.Equal(stateDomain.Name) {
 					shouldClone = true
 				}
 				break
 			}
 		}
+
+		// If we can't match a domain to one in the prior state, then we must
+		// conclude that it requires a new domain to be created.
+		if !foundDomain {
+			fmt.Printf("\ndidn't find: %+v\n", planDomain.Name.ValueString())
+			shouldClone = true
+		}
+
+		// TODO: Handle deleted resource!
+		// We must track what is in prior state but now is no longer in the plan.
 	}
 
 	if shouldClone {
