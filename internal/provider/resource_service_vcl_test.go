@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
@@ -9,7 +10,8 @@ import (
 )
 
 func TestAccResourceServiceVCL(t *testing.T) {
-	name := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	domainName := serviceName
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -17,22 +19,28 @@ func TestAccResourceServiceVCL(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccResourceServiceVCLConfig(name, false),
+				Config: testAccResourceServiceVCLConfig(serviceName, domainName, false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "1"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "2"),
 				),
+				// NOTE: The domain's ID attribute is computed.
+				// This means when doing a `terraform refresh` and we update the state,
+				// the Read function will regenerate the ID value for a domain and that
+				// will cause a diff (so we ignore the diff when running this test).
+				ExpectNonEmptyPlan: true,
 			},
 			// Update and Read testing
 			{
 				// IMPORTANT: Must set `force` to `true` so we can delete service.
-				Config: testAccResourceServiceVCLConfig(name, true),
+				Config: testAccResourceServiceVCLConfig(serviceName+"-updated", domainName+"-updated", true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
 				),
 			},
 			// ImportState testing
+			//
 			// IMPORTANT: Import verification must happen last.
 			// This is because the `force` attribute is determined by user config and
 			// can't be imported. If we had this test before the 'update' test where
@@ -49,15 +57,29 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	})
 }
 
-func testAccResourceServiceVCLConfig(name string, force bool) string {
+func testAccResourceServiceVCLConfig(serviceName, domainName string, force bool) string {
+	domainName1 := domainName
+	domainName2 := domainName
+	needle := "-updated"
+
+	// NOTE: We only want to update the first domain so we can validate the
+	// plan/state data order is consistent.
+	if strings.Contains(domainName, needle) {
+		domainName2 = strings.ReplaceAll(domainName2, needle, "")
+	}
+
 	return fmt.Sprintf(`
 resource "fastly_service_vcl" "test" {
   name = "%s"
   force = %t
 
   domain {
-    name = "%s-terraform-provider-fastly-framework.integralist.co.uk"
+    name = "%s-terraform-provider-fastly-framework-1.integralist.co.uk"
+  }
+
+  domain {
+    name = "%s-terraform-provider-fastly-framework-2.integralist.co.uk"
   }
 }
-`, name, force, name)
+`, serviceName, force, domainName1, domainName2)
 }

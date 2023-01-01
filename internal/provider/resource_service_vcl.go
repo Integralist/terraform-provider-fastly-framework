@@ -2,20 +2,19 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"fmt"
 	"net/http"
 
 	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 )
@@ -49,7 +48,8 @@ type ServiceVCLResourceModel struct {
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
 	// Domain is a block for the domain(s) associated with the service.
-	Domain types.Set `tfsdk:"domain"`
+	// TODO: Rename to plural.
+	Domain []ServiceDomain `tfsdk:"domain"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -62,6 +62,16 @@ type ServiceVCLResourceModel struct {
 	Reuse types.Bool `tfsdk:"reuse"`
 	// Version is the latest service version the provider will clone from.
 	Version types.Int64 `tfsdk:"version"`
+}
+
+// ServiceDomain is a block for the domain(s) associated with the service.
+type ServiceDomain struct {
+	// Comment is an optional comment about the domain.
+	Comment types.String `tfsdk:"comment"`
+	// ID is a unique identifier used by the provider to determine changes within a nested set type.
+	ID types.String `tfsdk:"id"`
+	// Name is the domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource.
+	Name types.String `tfsdk:"name"`
 }
 
 func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -83,6 +93,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 			"comment": schema.StringAttribute{
+				// NOTE: This is marked computed so provider can set a default.
 				Computed:            true,
 				MarkdownDescription: "Description field for the service. Default `Managed by Terraform`",
 				Optional:            true,
@@ -121,9 +132,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 		},
 
-		// IMPORTANT: We might want to consider switching to nested attributes.
-		// As nested blocks require much more complex code.
-		// https://discuss.hashicorp.com/t/how-to-set-types-set-from-read-method/48146
+		// IMPORTANT: Hashicorp recommend switching to nested attributes.
 		Blocks: map[string]schema.Block{
 			"domain": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
@@ -131,6 +140,10 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 						"comment": schema.StringAttribute{
 							MarkdownDescription: "An optional comment about the domain",
 							Optional:            true,
+						},
+						"id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Unique identifier used by the provider to determine changes within a nested set type",
 						},
 						"name": schema.StringAttribute{
 							MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
@@ -174,17 +187,17 @@ func (r *ServiceVCLResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *ServiceVCLResourceModel
+	var plan *ServiceVCLResourceModel
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	clientReq := r.client.ServiceAPI.CreateService(r.clientCtx)
-	clientReq.Comment(data.Comment.ValueString())
-	clientReq.Name(data.Name.ValueString())
+	clientReq.Comment(plan.Comment.ValueString())
+	clientReq.Name(plan.Name.ValueString())
 	clientReq.ResourceType("vcl")
 
 	clientResp, httpResp, err := clientReq.Execute()
@@ -205,7 +218,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
 		return
 	}
-	data.ID = types.StringValue(*id)
+	plan.ID = types.StringValue(*id)
 
 	versions, ok := clientResp.GetVersionsOk()
 	if !ok {
@@ -214,29 +227,22 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	version := versions[0].GetNumber()
-	data.Version = types.Int64Value(int64(version))
+	plan.Version = types.Int64Value(int64(version))
 
-	if data.Activate.ValueBool() {
-		data.LastActive = data.Version
+	if plan.Activate.ValueBool() {
+		plan.LastActive = plan.Version
 	}
 
 	// TODO: Abstract domains (and other resources)
-	for _, domain := range data.Domain.Elements() {
-		// TODO: abstract the conversion code as it's repeated in the Read function.
-		v, err := domain.ToTerraformValue(ctx)
-		if err != nil {
-			tflog.Trace(ctx, "ToTerraformValue error", map[string]any{"err": err})
-			resp.Diagnostics.AddError("ToTerraformValue error", fmt.Sprintf("Unable to convert type to Terraform value: %s", err))
-			return
-		}
+	for i := range plan.Domain {
+		domain := &plan.Domain[i]
 
-		var dst map[string]tftypes.Value
-
-		err = v.As(&dst)
-		if err != nil {
-			tflog.Trace(ctx, "As error", map[string]any{"err": err})
-			resp.Diagnostics.AddError("As error", fmt.Sprintf("Unable to convert type to Go value: %s", err))
-			return
+		if domain.ID.IsUnknown() {
+			// NOTE: We create a consistent hash of the domain name for the ID.
+			// Originally I used github.com/google/uuid but thought it would be more
+			// appropriate to use a hash of the domain name.
+			digest := sha256.Sum256([]byte(domain.Name.ValueString()))
+			domain.ID = types.StringValue(fmt.Sprintf("%x", digest))
 		}
 
 		// TODO: Check if the version we have is correct.
@@ -245,26 +251,12 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		// The service might exist if it was imported or a secondary config run.
 		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, *id, int32(version))
 
-		if v, ok := dst["comment"]; ok && !v.IsNull() {
-			var dst string
-			err := v.As(&dst)
-			if err != nil {
-				tflog.Trace(ctx, "As error", map[string]any{"err": err})
-				resp.Diagnostics.AddError("As error", fmt.Sprintf("Unable to convert type to Go value: %s", err))
-				return
-			}
-			clientReq.Comment(dst)
+		if !domain.Comment.IsNull() {
+			clientReq.Comment(domain.Comment.ValueString())
 		}
 
-		if v, ok := dst["name"]; ok && !v.IsNull() {
-			var dst string
-			err := v.As(&dst)
-			if err != nil {
-				tflog.Trace(ctx, "As error", map[string]any{"err": err})
-				resp.Diagnostics.AddError("As error", fmt.Sprintf("Unable to convert type to Go value: %s", err))
-				return
-			}
-			clientReq.Name(dst)
+		if !domain.Name.IsNull() {
+			clientReq.Name(domain.Name.ValueString())
 		}
 
 		_, httpResp, err := clientReq.Execute()
@@ -280,7 +272,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		}
 	}
 
-	if data.Activate.ValueBool() {
+	if plan.Activate.ValueBool() {
 		// FIXME: Need to check for changes + service already active.
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, *id, int32(version))
 		_, httpResp, err := clientReq.Execute()
@@ -296,22 +288,24 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	tflog.Trace(ctx, "created a resource")
 
 	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+
+	fmt.Printf("\nCREATE STATE: %+v\n", plan)
 }
 
 // TODO: How to handle DeletedAt attribute.
 // TODO: How to handle service type mismatch when importing.
 // TODO: How to handle name/comment which are versionless and need `activate`.
 func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data *ServiceVCLResourceModel
+	var state *ServiceVCLResourceModel
 
 	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, data.ID.ValueString())
+	clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())
 	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.GetServiceDetail error", map[string]any{"http_resp": httpResp})
@@ -319,9 +313,9 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	data.Comment = types.StringValue(clientResp.GetComment())
-	data.ID = types.StringValue(clientResp.GetID())
-	data.Name = types.StringValue(clientResp.GetName())
+	state.Comment = types.StringValue(clientResp.GetComment())
+	state.ID = types.StringValue(clientResp.GetID())
+	state.Name = types.StringValue(clientResp.GetName())
 
 	// NOTE: When importing a service there is no prior 'version' in the state.
 	// So we presume the user wants to import the last active service version.
@@ -331,8 +325,8 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	for _, version := range versions {
 		if version.GetActive() {
 			lastActive := int64(version.GetNumber())
-			data.Version = types.Int64Value(lastActive)
-			data.LastActive = types.Int64Value(lastActive)
+			state.Version = types.Int64Value(lastActive)
+			state.LastActive = types.Int64Value(lastActive)
 			foundActive = true
 			break
 		}
@@ -341,12 +335,12 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	// NOTE: In case user imports service with no active versions, use latest.
 	if !foundActive {
 		version := int64(versions[0].GetNumber())
-		data.Version = types.Int64Value(version)
-		data.LastActive = types.Int64Value(version)
+		state.Version = types.Int64Value(version)
+		state.LastActive = types.Int64Value(version)
 	}
 
 	// TODO: Abstract domains (and other resources) and rename back to clientReq.
-	clientDomainReq := r.client.DomainAPI.ListDomains(r.clientCtx, clientResp.GetID(), int32(data.Version.ValueInt64()))
+	clientDomainReq := r.client.DomainAPI.ListDomains(r.clientCtx, clientResp.GetID(), int32(state.Version.ValueInt64()))
 
 	// TODO: After abstraction rename back to clientResp.
 	clientDomainResp, httpResp, err := clientDomainReq.Execute()
@@ -361,19 +355,17 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	attrTypes := map[string]attr.Type{
-		"comment": types.StringType,
-		"name":    types.StringType,
-	}
+	var domains []ServiceDomain
 
-	elementType := types.ObjectType{
-		AttrTypes: attrTypes,
-	}
+	// TODO: Rename domainData to domain once moved to separate package.
+	for _, domainData := range clientDomainResp {
+		domainName := domainData.GetName()
+		digest := sha256.Sum256([]byte(domainName))
 
-	elements := []attr.Value{}
+		sd := ServiceDomain{
+			ID: types.StringValue(fmt.Sprintf("%x", digest)),
+		}
 
-	for _, domain := range clientDomainResp {
-		m := make(map[string]attr.Value)
 		// NOTE: We call the Ok variant of the API so we can check if value was set.
 		// WARNING: The code doesn't work as expected because of the Fastly API.
 		//
@@ -389,69 +381,41 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		// client could handle whether the value returned was null. So I've left the
 		// conditional logic here but have added to the else statement additional
 		// logic for working around the issue with the Fastly API response.
-		if v, ok := domain.GetCommentOk(); !ok {
-			m["comment"] = types.StringNull()
+		if v, ok := domainData.GetCommentOk(); !ok {
+			sd.Comment = types.StringNull()
 		} else {
-			m["comment"] = types.StringValue(*v)
+			sd.Comment = types.StringValue(*v)
 
-			// NOTE: The following logic works around lack of state when importing.
-			if data.Domain.IsNull() {
-				m["comment"] = types.StringNull()
-			}
-
-			// NOTE: The following logic works around the Fastly API (see above).
-			for _, domain := range data.Domain.Elements() {
-				// TODO: abstract the conversion code as it's the same in Create.
-				v, err := domain.ToTerraformValue(ctx)
-				if err != nil {
-					tflog.Trace(ctx, "ToTerraformValue error", map[string]any{"err": err})
-					resp.Diagnostics.AddError("ToTerraformValue error", fmt.Sprintf("Unable to convert type to Terraform value: %s", err))
-					return
-				}
-
-				var dst map[string]tftypes.Value
-
-				err = v.As(&dst)
-				if err != nil {
-					tflog.Trace(ctx, "As error", map[string]any{"err": err})
-					resp.Diagnostics.AddError("As error", fmt.Sprintf("Unable to convert type to Go value: %s", err))
-					return
-				}
-
-				if v, ok := dst["comment"]; ok && v.IsNull() {
-					m["comment"] = types.StringNull()
-				}
-			}
+			// TODO: Figure out if this logic is needed anymore.
+			// // NOTE: The following logic works around lack of state when importing.
+			// if state.Domain.IsNull() {
+			// 	sd.Comment = types.StringNull()
+			// }
 		}
 
-		if v, ok := domain.GetNameOk(); !ok {
-			m["name"] = types.StringNull()
+		if v, ok := domainData.GetNameOk(); !ok {
+			sd.Name = types.StringNull()
 		} else {
-			m["name"] = types.StringValue(*v)
+			sd.Name = types.StringValue(*v)
 		}
 
-		elements = append(elements, types.ObjectValueMust(attrTypes, m))
+		domains = append(domains, sd)
 	}
 
-	set, diag := types.SetValue(elementType, elements)
-
-	resp.Diagnostics.Append(diag...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	data.Domain = set
+	state.Domain = domains
 
 	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+
+	fmt.Printf("\nREAD STATE: %+v\n", state)
 }
 
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data *ServiceVCLResourceModel
+	var plan *ServiceVCLResourceModel
 	var state *ServiceVCLResourceModel
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -464,16 +428,112 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
+	fmt.Printf("plan: %+v\n", plan)
+	fmt.Printf("state: %+v\n", state)
+
 	// NOTE: The plan data doesn't contain computed attributes.
 	// So we need to read it from the current state.
-	data.Version = state.Version
-	data.LastActive = state.LastActive
+	plan.Version = state.Version
+	plan.LastActive = state.LastActive
 
-	// TODO: Implement full update logic.
-	// e.g. clone service version if there are domain updates.
-	// Compare state against the plan state to see what's changed.
+	// NOTE: Name and Comment are versionless attributes.
+	// Other nested blocks will need a new service version.
+	var shouldClone bool
 
-	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, data.ID.ValueString())
+	// NOTE: We have to manually track each resource in a nested set block.
+	// TODO: Abstract domain and other resources
+	// TODO: How to handle deleted resource?
+	for i := range plan.Domain {
+		planDomain := &plan.Domain[i]
+
+		// ID is a computed value so we need to regenerate it from the domain name.
+		if planDomain.ID.IsUnknown() {
+			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
+			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
+		}
+
+		for _, stateDomain := range state.Domain {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				if !planDomain.Comment.Equal(stateDomain.Comment) || !planDomain.Name.Equal(stateDomain.Name) {
+					shouldClone = true
+				}
+				break
+			}
+		}
+	}
+
+	if shouldClone {
+		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+		clientResp, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly VersionAPI.CloneServiceVersion error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
+			return
+		}
+		plan.Version = types.Int64Value(int64(clientResp.GetNumber()))
+
+		// TODO: Figure out what this API does and why we call it?
+		clientUpdateServiceVersionReq := r.client.VersionAPI.UpdateServiceVersion(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+		clientUpdateServiceVersionResp, httpResp, err := clientUpdateServiceVersionReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly VersionAPI.UpdateServiceVersion error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
+			return
+		}
+		fmt.Printf("update service version resp: %+v\n", clientUpdateServiceVersionResp.GetNumber())
+	}
+
+	// NOTE: We have to manually track changes in each resource.
+	for i := range plan.Domain {
+		planDomain := &plan.Domain[i]
+
+		for _, stateDomain := range state.Domain {
+			if planDomain.ID.Equal(stateDomain.ID) {
+				// If there are no changes in this resource's attributes, then skip update.
+				if planDomain.Comment.Equal(stateDomain.Comment) && planDomain.Name.Equal(stateDomain.Name) {
+					break
+				}
+
+				// TODO: Check if the version we have is correct.
+				// e.g. should it be latest 'active' or just latest version?
+				// It should depend on `activate` field but also whether the service pre-exists.
+				// The service might exist if it was imported or a secondary config run.
+				clientReq := r.client.DomainAPI.UpdateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), stateDomain.Name.ValueString())
+
+				if !planDomain.Comment.IsNull() {
+					clientReq.Comment(planDomain.Comment.ValueString())
+				}
+
+				if !planDomain.Name.IsNull() {
+					clientReq.Name(planDomain.Name.ValueString())
+				}
+
+				_, httpResp, err := clientReq.Execute()
+				if err != nil {
+					tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
+					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
+					return
+				}
+				if httpResp.StatusCode != http.StatusOK {
+					tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+					resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+					return
+				}
+
+				break
+			}
+		}
+	}
+
+	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
+	// When cloning (see above) we need to call UpdateServiceVersion.
+	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, plan.ID.ValueString())
+	if !plan.Comment.Equal(state.Comment) {
+		clientReq.Comment(plan.Comment.ValueString())
+	}
+	if !plan.Name.Equal(state.Name) {
+		clientReq.Name(plan.Name.ValueString())
+	}
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
@@ -483,21 +543,23 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+
+	fmt.Printf("\nUPDATE STATE: %+v\n", plan)
 }
 
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *ServiceVCLResourceModel
+	var state *ServiceVCLResourceModel
 
 	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if (data.Force.ValueBool() || data.Reuse.ValueBool()) && data.Activate.ValueBool() {
-		clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, data.ID.ValueString())
+	if (state.Force.ValueBool() || state.Reuse.ValueBool()) && state.Activate.ValueBool() {
+		clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly ServiceAPI.GetServiceDetail error", map[string]any{"http_resp": httpResp})
@@ -508,7 +570,7 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		version := *clientResp.GetActiveVersion().Number
 
 		if version != 0 {
-			clientReq := r.client.VersionAPI.DeactivateServiceVersion(r.clientCtx, data.ID.ValueString(), version)
+			clientReq := r.client.VersionAPI.DeactivateServiceVersion(r.clientCtx, state.ID.ValueString(), version)
 			_, httpResp, err := clientReq.Execute()
 			if err != nil {
 				tflog.Trace(ctx, "Fastly VersionAPI.DeactivateServiceVersion error", map[string]any{"http_resp": httpResp})
@@ -518,8 +580,8 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		}
 	}
 
-	if !data.Reuse.ValueBool() {
-		clientReq := r.client.ServiceAPI.DeleteService(r.clientCtx, data.ID.ValueString())
+	if !state.Reuse.ValueBool() {
+		clientReq := r.client.ServiceAPI.DeleteService(r.clientCtx, state.ID.ValueString())
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly ServiceAPI.DeleteService error", map[string]any{"http_resp": httpResp})
@@ -527,6 +589,8 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 			return
 		}
 	}
+
+	fmt.Printf("\nDELETE STATE: %+v\n", state)
 }
 
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -535,4 +599,6 @@ func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.Impor
 	// Refer to the original provider's implementation for details.
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+
+	fmt.Printf("\nIMPORT STATE: %+v\n", resp.State)
 }
