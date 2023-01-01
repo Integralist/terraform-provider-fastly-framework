@@ -28,6 +28,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				// This means when doing a `terraform refresh` and we update the state,
 				// the Read function will regenerate the ID value for a domain and that
 				// will cause a diff (so we ignore the diff when running this test).
+				// This is an issue because we don't want to skip it.
 				ExpectNonEmptyPlan: true,
 			},
 			// Update and Read testing

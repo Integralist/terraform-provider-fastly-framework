@@ -47,9 +47,8 @@ type ServiceVCLResourceModel struct {
 	Activate types.Bool `tfsdk:"activate"`
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
-	// Domain is a block for the domain(s) associated with the service.
-	// TODO: Rename to plural.
-	Domain []ServiceDomain `tfsdk:"domain"`
+	// Domains is a block for the domain(s) associated with the service.
+	Domains []ServiceDomain `tfsdk:"domain"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -234,8 +233,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// TODO: Abstract domains (and other resources)
-	for i := range plan.Domain {
-		domain := &plan.Domain[i]
+	for i := range plan.Domains {
+		domain := &plan.Domains[i]
 
 		if domain.ID.IsUnknown() {
 			// NOTE: We create a consistent hash of the domain name for the ID.
@@ -402,7 +401,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		domains = append(domains, sd)
 	}
 
-	state.Domain = domains
+	state.Domains = domains
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -443,8 +442,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// NOTE: We have to manually track each resource in a nested set block.
 	// TODO: Abstract domain and other resources
 	// TODO: How to handle deleted resource?
-	for i := range plan.Domain {
-		planDomain := &plan.Domain[i]
+	for i := range plan.Domains {
+		planDomain := &plan.Domains[i]
 
 		// ID is a computed value so we need to regenerate it from the domain name.
 		if planDomain.ID.IsUnknown() {
@@ -452,7 +451,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
 		}
 
-		for _, stateDomain := range state.Domain {
+		for _, stateDomain := range state.Domains {
 			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
 				if !planDomain.Comment.Equal(stateDomain.Comment) || !planDomain.Name.Equal(stateDomain.Name) {
 					shouldClone = true
@@ -484,10 +483,10 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	// NOTE: We have to manually track changes in each resource.
-	for i := range plan.Domain {
-		planDomain := &plan.Domain[i]
+	for i := range plan.Domains {
+		planDomain := &plan.Domains[i]
 
-		for _, stateDomain := range state.Domain {
+		for _, stateDomain := range state.Domains {
 			if planDomain.ID.Equal(stateDomain.ID) {
 				// If there are no changes in this resource's attributes, then skip update.
 				if planDomain.Comment.Equal(stateDomain.Comment) && planDomain.Name.Equal(stateDomain.Name) {
