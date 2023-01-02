@@ -386,11 +386,15 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		} else {
 			sd.Comment = types.StringValue(*v)
 
-			// TODO: Figure out if this logic is needed anymore.
-			// // NOTE: The following logic works around lack of state when importing.
-			// if state.Domain.IsNull() {
-			// 	sd.Comment = types.StringNull()
-			// }
+			// We need to check if the user config has set the comment.
+			// If not, then we'll again set the value to null to avoid a plan diff.
+			for _, stateDomain := range state.Domains {
+				if stateDomain.Name.ValueString() == domainName {
+					if stateDomain.Comment.IsNull() {
+						sd.Comment = types.StringNull()
+					}
+				}
+			}
 		}
 
 		if v, ok := domainData.GetNameOk(); !ok {
@@ -428,8 +432,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	fmt.Printf("UPDATE plan: %+v\n", plan)
-	fmt.Printf("UPDATE state: %+v\n", state)
+	fmt.Printf("\nUPDATE plan: %+v\n", plan)
+	fmt.Printf("\nUPDATE state: %+v\n", state)
 
 	// NOTE: The plan data doesn't contain computed attributes.
 	// So we need to read it from the current state.
@@ -448,10 +452,16 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// If plan 'key' exists in prior state, then it's modified.
 	// Otherwise resource is new.
 	// If state 'key' doesn't exist in plan, then it's deleted.
+	var added, deleted, modified []ServiceDomain
+
+	// If domain hashed is found in state, then it already exists and might be modified.
+	// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
+	// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
 
 	// NOTE: We have to manually track each resource in a nested set block.
 	// TODO: Abstract domain and other resources
 	for i := range plan.Domains {
+		// NOTE: We need a pointer to the resource struct so we can set an ID.
 		planDomain := &plan.Domains[i]
 
 		// ID is a computed value so we need to regenerate it from the domain name.
@@ -464,22 +474,37 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		for _, stateDomain := range state.Domains {
 			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
 				foundDomain = true
-				if !planDomain.Comment.Equal(stateDomain.Comment) || !planDomain.Name.Equal(stateDomain.Name) {
+				// NOTE: It's not possible for the domain's Name field to not match.
+				// This is because we first check the ID field matches, and that is
+				// based on a hash of the domain name. Because of this we don't bother
+				// checking if planDomain.Name and stateDomain.Name are not equal.
+				if !planDomain.Comment.Equal(stateDomain.Comment) {
 					shouldClone = true
+					modified = append(modified, *planDomain)
 				}
 				break
 			}
 		}
 
-		// If we can't match a domain to one in the prior state, then we must
-		// conclude that it requires a new domain to be created.
 		if !foundDomain {
-			fmt.Printf("\ndidn't find: %+v\n", planDomain.Name.ValueString())
 			shouldClone = true
+			added = append(added, *planDomain)
+		}
+	}
+
+	for _, stateDomain := range state.Domains {
+		var foundDomain bool
+		for _, planDomain := range plan.Domains {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				break
+			}
 		}
 
-		// TODO: Handle deleted resource!
-		// We must track what is in prior state but now is no longer in the plan.
+		if !foundDomain {
+			shouldClone = true
+			deleted = append(deleted, stateDomain)
+		}
 	}
 
 	if shouldClone {
@@ -500,7 +525,92 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
 			return
 		}
-		fmt.Printf("update service version resp: %+v\n", clientUpdateServiceVersionResp.GetNumber())
+		fmt.Printf("\nupdate service version resp: %+v\n", clientUpdateServiceVersionResp.GetNumber())
+	}
+
+	for _, domain := range added {
+		tflog.Debug(ctx, "domains", map[string]any{"added": added})
+
+		// TODO: Abstract the following API call into a function as it's called multiple times.
+
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+
+		if !domain.Comment.IsNull() {
+			clientReq.Comment(domain.Comment.ValueString())
+		}
+
+		if !domain.Name.IsNull() {
+			clientReq.Name(domain.Name.ValueString())
+		}
+
+		_, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
+			return
+		}
+		if httpResp.StatusCode != http.StatusOK {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+			return
+		}
+	}
+
+	for _, domain := range deleted {
+		tflog.Debug(ctx, "domains", map[string]any{"deleted": deleted})
+
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := r.client.DomainAPI.DeleteDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), domain.Name.ValueString())
+
+		_, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
+			return
+		}
+		if httpResp.StatusCode != http.StatusOK {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+			return
+		}
+	}
+
+	for _, domain := range modified {
+		tflog.Debug(ctx, "domains", map[string]any{"modified": modified})
+
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := r.client.DomainAPI.UpdateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), "")
+
+		if !domain.Comment.IsNull() {
+			clientReq.Comment(domain.Comment.ValueString())
+		}
+
+		// NOTE: We don't bother to check/update the domain's Name field.
+		// This is because if the name of the domain has changed, then that means
+		// the a new domain will be added and the original domain deleted. Thus,
+		// we'll only have a domain as 'modified' if the Comment field was modified.
+
+		_, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
+			return
+		}
+		if httpResp.StatusCode != http.StatusOK {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+			return
+		}
 	}
 
 	// NOTE: We have to manually track changes in each resource.

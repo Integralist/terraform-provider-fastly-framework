@@ -24,12 +24,6 @@ func TestAccResourceServiceVCL(t *testing.T) {
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "2"),
 				),
-				// NOTE: The domain's ID attribute is computed.
-				// This means when doing a `terraform refresh` and we update the state,
-				// the Read function will regenerate the ID value for a domain and that
-				// will cause a diff (so we ignore the diff when running this test).
-				// This is an issue because we don't want to skip it.
-				ExpectNonEmptyPlan: true,
 			},
 			// Update and Read testing
 			{
@@ -63,8 +57,8 @@ func testAccResourceServiceVCLConfig(serviceName, domainName string, force bool)
 	domainName2 := domainName
 	needle := "-updated"
 
-	// NOTE: We only want to update the first domain so we can validate the
-	// plan/state data order is consistent.
+	// NOTE: We only want to update the first domain.
+	// So we strip the needle from the second domain.
 	if strings.Contains(domainName, needle) {
 		domainName2 = strings.ReplaceAll(domainName2, needle, "")
 	}
