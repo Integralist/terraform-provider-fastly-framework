@@ -132,7 +132,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		},
 
 		// IMPORTANT: Hashicorp recommend switching to nested attributes.
-		// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#nested-attributes
+		// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes
 		Blocks: map[string]schema.Block{
 			"domain": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
@@ -367,7 +367,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		}
 
 		// NOTE: We call the Ok variant of the API so we can check if value was set.
-		// WARNING: The code doesn't work as expected because of the Fastly API.
+		// WARNING: The code doesn't work as you might expect because of the Fastly API.
 		//
 		// The Fastly API always returns an empty string (and not null). This means
 		// we get a conflict with the state file, as it stores the value as <null>.
