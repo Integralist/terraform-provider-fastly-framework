@@ -69,11 +69,11 @@ resource "fastly_service_vcl" "test" {
   force = %t
 
   domain {
-    name = "%s-terraform-provider-fastly-framework-1.integralist.co.uk"
+    name = "%s-tpff-1.integralist.co.uk"
   }
 
   domain {
-    name = "%s-terraform-provider-fastly-framework-2.integralist.co.uk"
+    name = "%s-tpff-2.integralist.co.uk"
   }
 }
 `, serviceName, force, domainName1, domainName2)

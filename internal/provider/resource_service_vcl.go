@@ -234,6 +234,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// TODO: Abstract domains (and other resources)
+	// https://pkg.go.dev/github.com/mitchellh/mapstructure might help for update diffing.
 	for i := range plan.Domains {
 		domain := &plan.Domains[i]
 
