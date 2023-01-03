@@ -680,13 +680,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	if shouldClone {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersionToActivate)
-		clientResp, httpResp, err := clientReq.Execute()
+		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
-		fmt.Printf("\nactivate service version: %+v\n", clientResp)
 	}
 
 	fmt.Printf("\nUPDATE STATE: %+v\n", plan)
