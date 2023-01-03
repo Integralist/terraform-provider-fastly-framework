@@ -42,10 +42,13 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			// we set `force` to `true`, then we'd use the last known state of
 			// `false` and that would prevent the delete operation from succeeding.
 			{
-				ResourceName:            "fastly_service_vcl.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"activate", "force", "reuse"},
+				ResourceName:      "fastly_service_vcl.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// FIXME: Don't ignore domain when importing.
+				// This is because the API returns empty string for comment.
+				// We don't have prior state data to know if the empty string was purposefully set by user in their config.
+				ImportStateVerifyIgnore: []string{"activate", "domain", "force", "reuse"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},

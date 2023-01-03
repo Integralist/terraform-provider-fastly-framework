@@ -508,6 +508,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
+	var serviceVersionToActivate int32
 	if shouldClone {
 		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
 		clientResp, httpResp, err := clientReq.Execute()
@@ -526,7 +527,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
 			return
 		}
-		fmt.Printf("\nupdate service version resp: %+v\n", clientUpdateServiceVersionResp.GetNumber())
+
+		serviceVersionToActivate = clientUpdateServiceVersionResp.GetNumber()
 	}
 
 	for _, domain := range added {
@@ -675,6 +677,17 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+
+	if shouldClone {
+		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersionToActivate)
+		clientResp, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
+			return
+		}
+		fmt.Printf("\nactivate service version: %+v\n", clientResp)
+	}
 
 	fmt.Printf("\nUPDATE STATE: %+v\n", plan)
 }
