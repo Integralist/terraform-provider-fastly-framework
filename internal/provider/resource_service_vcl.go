@@ -482,10 +482,11 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Other nested blocks will need a new service version.
 	var shouldClone bool
 
-	// FIXME: We need something like SetDiff from the original provider.
+	// FIXME: We need an abstractions like SetDiff from the original provider.
 	// We compare the plan set to the state set and determine what changed.
 	// e.g. 'added', 'modified', 'deleted' and calls relevant API.
 	// Needs a 'key' for each resource (sometimes 'name' but has to be unique).
+	// Unless we switch to MapNestedAttribute which provides a key by design.
 	//
 	// If plan 'key' exists in prior state, then it's modified.
 	// Otherwise resource is new.
