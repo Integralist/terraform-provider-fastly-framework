@@ -49,7 +49,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				// We can't ignore a nested attribute (e.g. domains.#.comment) and so
 				// after an import the API returns empty strings for the comment of each
 				// domain and this means a `terraform refresh` doesn't match.
-				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "domains"},
+				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "domains", "nested_attribute"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},
@@ -80,6 +80,15 @@ resource "fastly_service_vcl" "test" {
       name = "%s-tpff-2.integralist.co.uk"
     }
   ]
+
+  nested_attribute = {
+    "whatever.com" = {
+      hello = "world"
+    },
+    "beepboop.co.uk" = {
+      hello = "peeps"
+    },
+  }
 }
 `, serviceName, force, domainName1, domainName2)
 }
