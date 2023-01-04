@@ -102,6 +102,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 			// FIXME: We should consider a MapNestedAttribute to avoid diff issues.
+			// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#mapnestedattribute
 			"domains": schema.SetNestedAttribute{
 				Required: true,
 				NestedObject: schema.NestedAttributeObject{
