@@ -50,8 +50,6 @@ type ServiceVCLResourceModel struct {
 	Comment types.String `tfsdk:"comment"`
 	// Domains is a block for the domain(s) associated with the service.
 	Domains []ServiceDomain `tfsdk:"domains"`
-	// NestedAttributes is a test.
-	NestedAttributes map[string]ServiceAttribute `tfsdk:"nested_attribute"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -64,11 +62,6 @@ type ServiceVCLResourceModel struct {
 	Reuse types.Bool `tfsdk:"reuse"`
 	// Version is the latest service version the provider will clone from.
 	Version types.Int64 `tfsdk:"version"`
-}
-
-// ServiceAttribute is a test.
-type ServiceAttribute struct {
-	Hello types.String `tfsdk:"hello"`
 }
 
 // ServiceDomain is a block for the domain(s) associated with the service.
@@ -129,17 +122,6 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 						"name": schema.StringAttribute{
 							MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
 							Required:            true,
-						},
-					},
-				},
-			},
-			"nested_attribute": schema.MapNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"hello": schema.StringAttribute{
-							MarkdownDescription: "...",
-							Optional:            true,
 						},
 					},
 				},
@@ -214,10 +196,6 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	for k, v := range plan.NestedAttributes {
-		fmt.Printf("\n%+v | %+v\n", k, v.Hello.ValueString())
 	}
 
 	clientReq := r.client.ServiceAPI.CreateService(r.clientCtx)

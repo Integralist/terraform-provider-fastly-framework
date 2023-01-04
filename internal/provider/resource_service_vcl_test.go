@@ -45,7 +45,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				ResourceName:            "fastly_service_vcl.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "nested_attribute"},
+				ImportStateVerifyIgnore: []string{"activate", "force", "reuse"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},
@@ -76,15 +76,6 @@ resource "fastly_service_vcl" "test" {
       name = "%s-tpff-2.integralist.co.uk"
     }
   ]
-
-  nested_attribute = {
-    "whatever.com" = {
-      hello = "world"
-    },
-    "beepboop.co.uk" = {
-      hello = "peeps"
-    },
-  }
 }
 `, serviceName, force, domainName1, domainName2)
 }
