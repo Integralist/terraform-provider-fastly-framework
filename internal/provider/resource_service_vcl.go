@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 )
@@ -288,7 +289,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	fmt.Printf("\nCREATE STATE: %+v\n", plan)
+	tflog.Debug(ctx, "Create", map[string]any{"state": plan})
 }
 
 // TODO: How to handle DeletedAt attribute.
@@ -409,7 +410,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	fmt.Printf("\nREAD STATE: %+v\n", state)
+	tflog.Debug(ctx, "Read", map[string]any{"state": state})
 }
 
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -429,9 +430,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	fmt.Printf("\nUPDATE plan: %+v\n", plan)
-	fmt.Printf("\nUPDATE state: %+v\n", state)
 
 	// NOTE: The plan data doesn't contain computed attributes.
 	// So we need to read it from the current state.
@@ -685,7 +683,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	fmt.Printf("\nUPDATE STATE: %+v\n", plan)
+	tflog.Debug(ctx, "Update", map[string]any{"state": plan})
 }
 
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -730,7 +728,7 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		}
 	}
 
-	fmt.Printf("\nDELETE STATE: %+v\n", state)
+	tflog.Debug(ctx, "Delete", map[string]any{"state": state})
 }
 
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -740,5 +738,9 @@ func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.Impor
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 
-	fmt.Printf("\nIMPORT STATE: %+v\n", resp.State)
+	var state map[string]tftypes.Value
+	err := resp.State.Raw.As(&state)
+	if err == nil {
+		tflog.Debug(ctx, "ImportState", map[string]any{"state": state})
+	}
 }
