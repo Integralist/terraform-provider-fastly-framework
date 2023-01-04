@@ -290,7 +290,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	tflog.Debug(ctx, "Create", map[string]any{"state": plan})
+	tflog.Debug(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
 // TODO: How to handle DeletedAt attribute.
@@ -411,7 +411,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	tflog.Debug(ctx, "Read", map[string]any{"state": state})
+	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -684,7 +684,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Update", map[string]any{"state": plan})
+	tflog.Debug(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -729,7 +729,7 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Delete", map[string]any{"state": state})
+	tflog.Debug(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -743,6 +743,6 @@ func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.Impor
 	var state map[string]tftypes.Value
 	err := resp.State.Raw.As(&state)
 	if err == nil {
-		tflog.Debug(ctx, "ImportState", map[string]any{"state": state})
+		tflog.Debug(ctx, "ImportState", map[string]any{"state": fmt.Sprintf("%+v", state)})
 	}
 }
