@@ -48,7 +48,7 @@ type ServiceVCLResourceModel struct {
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
 	// Domains is a block for the domain(s) associated with the service.
-	Domains []ServiceDomain `tfsdk:"domain"`
+	Domains []ServiceDomain `tfsdk:"domains"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -100,6 +100,26 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					helpers.StringDefaultModifier{Default: "Managed by Terraform"},
 				},
 			},
+			// FIXME: We should consider a MapNestedAttribute to avoid diff issues.
+			"domains": schema.SetNestedAttribute{
+				Required: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"comment": schema.StringAttribute{
+							MarkdownDescription: "An optional comment about the domain",
+							Optional:            true,
+						},
+						"id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Unique identifier used by the provider to determine changes within a nested set type",
+						},
+						"name": schema.StringAttribute{
+							MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
+							Required:            true,
+						},
+					},
+				},
+			},
 			"force": schema.BoolAttribute{
 				MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`",
 				Optional:            true,
@@ -128,29 +148,6 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"version": schema.Int64Attribute{
 				Computed:            true,
 				MarkdownDescription: "The latest version that the provider will clone from (typically in-sync with `last_active` but not if `activate` is `false`)",
-			},
-		},
-
-		// IMPORTANT: Hashicorp recommend switching to nested attributes.
-		// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes
-		Blocks: map[string]schema.Block{
-			"domain": schema.SetNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"comment": schema.StringAttribute{
-							MarkdownDescription: "An optional comment about the domain",
-							Optional:            true,
-						},
-						"id": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "Unique identifier used by the provider to determine changes within a nested set type",
-						},
-						"name": schema.StringAttribute{
-							MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
-							Required:            true,
-						},
-					},
-				},
 			},
 		},
 	}

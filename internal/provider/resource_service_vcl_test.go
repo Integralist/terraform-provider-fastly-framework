@@ -22,7 +22,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				Config: testAccResourceServiceVCLConfig(serviceName, domainName, false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domain.#", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.#", "2"),
 				),
 			},
 			// Update and Read testing
@@ -45,10 +45,11 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				ResourceName:      "fastly_service_vcl.test",
 				ImportState:       true,
 				ImportStateVerify: true,
-				// FIXME: Don't ignore domain when importing.
-				// This is because the API returns empty string for comment.
-				// We don't have prior state data to know if the empty string was purposefully set by user in their config.
-				ImportStateVerifyIgnore: []string{"activate", "domain", "force", "reuse"},
+				// FIXME: Don't ignore domains attribute.
+				// We can't ignore a nested attribute (e.g. domains.#.comment) and so
+				// after an import the API returns empty strings for the comment of each
+				// domain and this means a `terraform refresh` doesn't match.
+				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "domains"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},
@@ -71,13 +72,14 @@ resource "fastly_service_vcl" "test" {
   name = "%s"
   force = %t
 
-  domain {
-    name = "%s-tpff-1.integralist.co.uk"
-  }
-
-  domain {
-    name = "%s-tpff-2.integralist.co.uk"
-  }
+  domains = [
+    {
+      name = "%s-tpff-1.integralist.co.uk"
+    },
+    {
+      name = "%s-tpff-2.integralist.co.uk"
+    }
+  ]
 }
 `, serviceName, force, domainName1, domainName2)
 }
