@@ -734,7 +734,8 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// TODO: req.ID needs to be checked for format.
 	// Typically just a Service ID but can also be <service id>@<service version>
-	// Refer to the original provider's implementation for details.
+	// If the @<service_version> format is provided, then we need to parse the
+	// version and set it into the `version` attribute as well as `last_active`.
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 
