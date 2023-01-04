@@ -42,14 +42,10 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			// we set `force` to `true`, then we'd use the last known state of
 			// `false` and that would prevent the delete operation from succeeding.
 			{
-				ResourceName:      "fastly_service_vcl.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-				// FIXME: Don't ignore domains attribute.
-				// We can't ignore a nested attribute (e.g. domains.#.comment) and so
-				// after an import the API returns empty strings for the comment of each
-				// domain and this means a `terraform refresh` doesn't match.
-				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "domains", "nested_attribute"},
+				ResourceName:            "fastly_service_vcl.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"activate", "force", "reuse", "nested_attribute"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},

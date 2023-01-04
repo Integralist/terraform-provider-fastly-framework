@@ -403,13 +403,16 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		// client could handle whether the value returned was null. So I've left the
 		// conditional logic here but have added to the else statement additional
 		// logic for working around the issue with the Fastly API response.
-		if v, ok := domainData.GetCommentOk(); !ok {
-			sd.Comment = types.StringNull()
-		} else {
+		if v, ok := domainData.GetCommentOk(); ok {
+			// Set comment to whatever is returned by the API (could be an empty
+			// string and that might be because the user set that explicitly or it
+			// could be because it was never set and the API is just returning an
+			// empty string as a default value).
 			sd.Comment = types.StringValue(*v)
 
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
+			// See the above WARNING for the details.
 			for _, stateDomain := range state.Domains {
 				if stateDomain.Name.ValueString() == domainName {
 					if stateDomain.Comment.IsNull() {
@@ -417,6 +420,22 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 					}
 				}
 			}
+
+			// Domains is a required field, so if there is a length of zero, then we
+			// know that the Read method was called after an import (as an import only
+			// sets the Service ID). This means we can't check the prior state to see
+			// if the user had configured a value for the comment.
+			//
+			// TODO: Test the API to see if a comment be set to an empty string?
+			// If it can't then we can rework this logic to account for that.
+			// Basically if the value is an empty string from the API then that would
+			// suggest that is the default value and was never set by the user.
+			// Meaning we should be safe to set to null.
+			if len(state.Domains) == 0 {
+				sd.Comment = types.StringNull()
+			}
+		} else {
+			sd.Comment = types.StringNull()
 		}
 
 		if v, ok := domainData.GetNameOk(); !ok {
