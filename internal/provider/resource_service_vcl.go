@@ -175,36 +175,6 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}
 }
 
-func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
-	return []resource.ConfigValidator{
-		resourcevalidator.Conflicting(
-			path.MatchRoot("force"),
-			path.MatchRoot("reuse"),
-		),
-	}
-}
-
-func (r *ServiceVCLResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(*fastly.APIClient)
-
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *fastly.APIClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-
-		return
-	}
-
-	r.client = client
-	r.clientCtx = fastly.NewAPIKeyContextFromEnv("FASTLY_API_TOKEN")
-}
-
 // Create is called when the provider must create a new resource.
 // Config and planned state values should be read from the CreateRequest.
 // New state values set on the CreateResponse.
@@ -787,6 +757,28 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 	tflog.Debug(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
+// Configure includes provider-level data or clients.
+func (r *ServiceVCLResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(*fastly.APIClient)
+
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *fastly.APIClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+
+		return
+	}
+
+	r.client = client
+	r.clientCtx = fastly.NewAPIKeyContextFromEnv("FASTLY_API_TOKEN")
+}
+
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// TODO: req.ID needs to be checked for format.
 	// Typically just a Service ID but can also be <service id>@<service version>
@@ -799,5 +791,16 @@ func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.Impor
 	err := resp.State.Raw.As(&state)
 	if err == nil {
 		tflog.Debug(ctx, "ImportState", map[string]any{"state": fmt.Sprintf("%+v", state)})
+	}
+}
+
+// ConfigValidators returns a list of functions which will all be performed during validation.
+// https://developer.hashicorp.com/terraform/plugin/framework/resources/validate-configuration#configvalidators-method
+func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.Conflicting(
+			path.MatchRoot("force"),
+			path.MatchRoot("reuse"),
+		),
 	}
 }
