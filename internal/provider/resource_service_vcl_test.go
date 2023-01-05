@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
@@ -13,13 +12,49 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 	domainName := serviceName
 
+	// Create a service with two domains (force = false).
+	configCreate := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      name = "%s"
+      force = %t
+
+      domains = [
+        {
+          name = "%s-tpff-1.integralist.co.uk"
+        },
+        {
+          name = "%s-tpff-2.integralist.co.uk"
+        },
+      ]
+    }
+    `, serviceName, false, domainName, domainName)
+
+	// Update the first domain's comment + second domain's name (force = true).
+	// We also change the order of the domains so the second is now first.
+	configUpdate := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      name = "%s"
+      force = %t
+
+      domains = [
+        {
+          name = "%s-tpff-2-updated.integralist.co.uk"
+        },
+        {
+          comment = "a random updated comment"
+          name = "%s-tpff-1.integralist.co.uk"
+        },
+      ]
+    }
+    `, serviceName, true, domainName+"-updated", domainName+"-updated")
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccResourceServiceVCLConfig(serviceName, domainName, false),
+				Config: configCreate,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.#", "2"),
@@ -28,7 +63,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			// Update and Read testing
 			{
 				// IMPORTANT: Must set `force` to `true` so we can delete service.
-				Config: testAccResourceServiceVCLConfig(serviceName+"-updated", domainName+"-updated", true),
+				Config: configUpdate,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
@@ -50,32 +85,4 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			// Delete testing automatically occurs in TestCase
 		},
 	})
-}
-
-func testAccResourceServiceVCLConfig(serviceName, domainName string, force bool) string {
-	domainName1 := domainName
-	domainName2 := domainName
-	needle := "-updated"
-
-	// NOTE: We only want to update the first domain.
-	// So we strip the needle from the second domain.
-	if strings.Contains(domainName, needle) {
-		domainName2 = strings.ReplaceAll(domainName2, needle, "")
-	}
-
-	return fmt.Sprintf(`
-resource "fastly_service_vcl" "test" {
-  name = "%s"
-  force = %t
-
-  domains = [
-    {
-      name = "%s-tpff-1.integralist.co.uk"
-    },
-    {
-      name = "%s-tpff-2.integralist.co.uk"
-    }
-  ]
-}
-`, serviceName, force, domainName1, domainName2)
 }
