@@ -62,7 +62,7 @@ type ServiceVCLResourceModel struct {
 	Activate types.Bool `tfsdk:"activate"`
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
-	// Domains is a block for the domain(s) associated with the service.
+	// Domains is a nested set attribute for the domain(s) associated with the service.
 	Domains []ServiceDomain `tfsdk:"domains"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
@@ -78,7 +78,7 @@ type ServiceVCLResourceModel struct {
 	Version types.Int64 `tfsdk:"version"`
 }
 
-// ServiceDomain is a block for the domain(s) associated with the service.
+// ServiceDomain is a nested set attribute for the domain(s) associated with the service.
 type ServiceDomain struct {
 	// Comment is an optional comment about the domain.
 	Comment types.String `tfsdk:"comment"`
@@ -456,8 +456,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	plan.Version = state.Version
 	plan.LastActive = state.LastActive
 
-	// NOTE: Name and Comment are versionless attributes.
-	// Other nested blocks will need a new service version.
+	// NOTE: Name and Comment are 'versionless' attributes.
+	// Other nested attributes will need a new service version.
 	var shouldClone bool
 
 	// FIXME: We need an abstractions like SetDiff from the original provider.
@@ -475,7 +475,10 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
 	// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
 
-	// NOTE: We have to manually track each resource in a nested set block.
+	// NOTE: We have to manually track each resource in a nested set attribute.
+	// For domains this means computing an ID for each domain, then calculating
+	// whether a domain has been added, deleted or modified. If any of those
+	// conditions are met, then we must clone the current service version.
 	// TODO: Abstract domain and other resources
 	for i := range plan.Domains {
 		// NOTE: We need a pointer to the resource struct so we can set an ID.
