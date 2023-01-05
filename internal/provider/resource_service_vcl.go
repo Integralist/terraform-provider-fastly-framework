@@ -276,14 +276,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		}
 	}
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created a resource")
-
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	tflog.Debug(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
+	tflog.Trace(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
 // Read is called when the provider must read resource values in order to update state.
@@ -427,7 +423,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
+	tflog.Trace(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
 // Update is called to update the state of the resource.
@@ -659,14 +655,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Update", map[string]any{
-		"state": fmt.Sprintf("%+v", plan),
-		"domains": map[string]any{
-			"added":    added,
-			"deleted":  deleted,
-			"modified": modified,
-		},
+	tflog.Debug(ctx, "Domains", map[string]any{
+		"added":    added,
+		"deleted":  deleted,
+		"modified": modified,
 	})
+	tflog.Trace(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
 // Delete is called when the provider must delete the resource.
@@ -716,7 +710,7 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%+v", state)})
+	tflog.Trace(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
 // Configure includes provider-level data or clients.
