@@ -779,6 +779,14 @@ func (r *ServiceVCLResource) Configure(_ context.Context, req resource.Configure
 	r.clientCtx = fastly.NewAPIKeyContextFromEnv("FASTLY_API_TOKEN")
 }
 
+// ImportState is called when the provider must import the state of a resource instance.
+//
+// This method must return enough state so the Read method can properly refresh
+// the full resource.
+//
+// If setting an attribute with the import identifier, it is recommended to use
+// the ImportStatePassthroughID() call in this method.
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ImportStatePassthroughID
 func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// TODO: req.ID needs to be checked for format.
 	// Typically just a Service ID but can also be <service id>@<service version>
