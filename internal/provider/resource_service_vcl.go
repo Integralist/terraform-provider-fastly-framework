@@ -392,17 +392,25 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 				}
 			}
 
-			// Domains is a required field, so if there is a length of zero, then we
-			// know that the Read method was called after an import (as an import only
-			// sets the Service ID). This means we can't check the prior state to see
-			// if the user had configured a value for the comment.
+			// Domains is a required attribute, so if there is a length of zero, then
+			// we know that the Read method was called after an import (as an import
+			// only sets the Service ID). This means we can't check the prior state to
+			// see if the user had configured a value for the comment.
 			//
-			// TODO: Test the API to see if a comment be set to an empty string?
-			// If it can't then we can rework this logic to account for that.
-			// Basically if the value is an empty string from the API then that would
-			// suggest that is the default value and was never set by the user.
-			// Meaning we should be safe to set to null.
-			if len(state.Domains) == 0 {
+			// WARNING: The domain comment logic for import scenarios is fragile.
+			//
+			// The problem we have is that a user can set an empty string as a comment
+			// value to the Fastly API. This means when importing a service, as we
+			// have no prior state to compare with, we can't tell if the value
+			// returned by the Fastly API is an empty string because the comment was
+			// never set by the user (and the API defaults to returning an empty
+			// string) or if it's an empty string because the user's service actually
+			// had it set explicitly to be an empty string. In reality, it's very
+			// unlikely that a user is going to configure an empty string for the
+			// domain comment (they'll more likely just omit the attribute). So we'll
+			// presume that if we're in an 'import' scenario and the comment value is
+			// an empty string, that we should set the comment attribute to null.
+			if len(state.Domains) == 0 && *v == "" {
 				sd.Comment = types.StringNull()
 			}
 		} else {
