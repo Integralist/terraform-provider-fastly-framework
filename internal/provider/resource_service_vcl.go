@@ -35,6 +35,20 @@ func NewServiceVCLResource() resource.Resource {
 }
 
 // ServiceVCLResource defines the resource implementation.
+//
+// It implements multiple Terraform interfaces:
+//
+// - `Resource`
+//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#Resource
+//
+// - `ResourceWithConfigValidators`
+//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigValidators
+//
+// - `ResourceWithConfigure`
+//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigure
+//
+// - `ResourceWithImportState`
+//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithImportState
 type ServiceVCLResource struct {
 	// client is a preconfigured instance of the Fastly API client.
 	client *fastly.APIClient
@@ -74,10 +88,12 @@ type ServiceDomain struct {
 	Name types.String `tfsdk:"name"`
 }
 
+// Metadata should return the full name of the resource.
 func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service_vcl"
 }
 
+// Schema should return the schema for this resource.
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
@@ -189,6 +205,9 @@ func (r *ServiceVCLResource) Configure(_ context.Context, req resource.Configure
 	r.clientCtx = fastly.NewAPIKeyContextFromEnv("FASTLY_API_TOKEN")
 }
 
+// Create is called when the provider must create a new resource.
+// Config and planned state values should be read from the CreateRequest.
+// New state values set on the CreateResponse.
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan *ServiceVCLResourceModel
 
@@ -297,6 +316,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	tflog.Debug(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
+// Read is called when the provider must read resource values in order to update state.
+// Planned state values should be read from the ReadRequest.
+// New state values set on the ReadResponse.
+//
 // TODO: How to handle DeletedAt attribute.
 // TODO: How to handle service type mismatch when importing.
 // TODO: How to handle name/comment which are versionless and need `activate`.
@@ -437,6 +460,9 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
 }
 
+// Update is called to update the state of the resource.
+// Config, planned state, and prior state values should be read from the UpdateRequest.
+// New state values set on the UpdateResponse.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan *ServiceVCLResourceModel
 	var state *ServiceVCLResourceModel
@@ -711,6 +737,11 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	tflog.Debug(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 
+// Delete is called when the provider must delete the resource.
+// Config values may be read from the DeleteRequest.
+//
+// If execution completes without error, the framework will automatically call
+// DeleteResponse.State.RemoveResource().
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state *ServiceVCLResourceModel
 
