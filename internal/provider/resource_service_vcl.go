@@ -561,6 +561,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// If a user tries to switch from dynamicsnippet to snippet, and we don't
 	// delete the resource first before creating the new one, then the Fastly API
 	// will return an error and indicate that we have a conflict.
+	//
+	// FIXME: In the current Fastly provider there is a race condition bug.
+	// https://github.com/fastly/terraform-provider-fastly/issues/628#issuecomment-1372477539
+	// Which is based on the fact that snippets are two separate types.
+	// We should make them a single type (as the API is one endpoint).
+	// Then we can expose a `dynamic` boolean attribute to control the type.
 
 	for _, domain := range deleted {
 		// TODO: Check if the version we have is correct.
