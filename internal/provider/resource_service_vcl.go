@@ -635,48 +635,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	// NOTE: We have to manually track changes in each resource.
-	for i := range plan.Domains {
-		planDomain := &plan.Domains[i]
-
-		for _, stateDomain := range state.Domains {
-			if planDomain.ID.Equal(stateDomain.ID) {
-				// If there are no changes in this resource's attributes, then skip update.
-				if planDomain.Comment.Equal(stateDomain.Comment) && planDomain.Name.Equal(stateDomain.Name) {
-					break
-				}
-
-				// TODO: Check if the version we have is correct.
-				// e.g. should it be latest 'active' or just latest version?
-				// It should depend on `activate` field but also whether the service pre-exists.
-				// The service might exist if it was imported or a secondary config run.
-				clientReq := r.client.DomainAPI.UpdateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), stateDomain.Name.ValueString())
-
-				if !planDomain.Comment.IsNull() {
-					clientReq.Comment(planDomain.Comment.ValueString())
-				}
-
-				if !planDomain.Name.IsNull() {
-					clientReq.Name(planDomain.Name.ValueString())
-				}
-
-				_, httpResp, err := clientReq.Execute()
-				if err != nil {
-					tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
-					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
-					return
-				}
-				if httpResp.StatusCode != http.StatusOK {
-					tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-					resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-					return
-				}
-
-				break
-			}
-		}
-	}
-
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
 	// When cloning (see above) we need to call UpdateServiceVersion.
 	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, plan.ID.ValueString())
