@@ -556,6 +556,32 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		serviceVersionToActivate = clientUpdateServiceVersionResp.GetNumber()
 	}
 
+	// IMPORTANT: We need to delete, then add, then update.
+	// Some Fastly resources (like snippets) must have unique names.
+	// If a user tries to switch from dynamicsnippet to snippet, and we don't
+	// delete the resource first before creating the new one, then the Fastly API
+	// will return an error and indicate that we have a conflict.
+
+	for _, domain := range deleted {
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := r.client.DomainAPI.DeleteDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), domain.Name.ValueString())
+
+		_, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
+			return
+		}
+		if httpResp.StatusCode != http.StatusOK {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+			return
+		}
+	}
+
 	for _, domain := range added {
 		// TODO: Abstract the following API call into a function as it's called multiple times.
 
@@ -577,26 +603,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		if err != nil {
 			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
-			return
-		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-			return
-		}
-	}
-
-	for _, domain := range deleted {
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.DeleteDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), domain.Name.ValueString())
-
-		_, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
 			return
 		}
 		if httpResp.StatusCode != http.StatusOK {
