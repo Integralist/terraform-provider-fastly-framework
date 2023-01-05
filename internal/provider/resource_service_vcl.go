@@ -551,8 +551,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	for _, domain := range added {
-		tflog.Debug(ctx, "domains", map[string]any{"added": added})
-
 		// TODO: Abstract the following API call into a function as it's called multiple times.
 
 		// TODO: Check if the version we have is correct.
@@ -583,8 +581,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	for _, domain := range deleted {
-		tflog.Debug(ctx, "domains", map[string]any{"deleted": deleted})
-
 		// TODO: Check if the version we have is correct.
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
@@ -605,8 +601,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	for _, domain := range modified {
-		tflog.Debug(ctx, "domains", map[string]any{"modified": modified})
-
 		// TODO: Check if the version we have is correct.
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
@@ -665,7 +659,14 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
+	tflog.Debug(ctx, "Update", map[string]any{
+		"state": fmt.Sprintf("%+v", plan),
+		"domains": map[string]any{
+			"added":    added,
+			"deleted":  deleted,
+			"modified": modified,
+		},
+	})
 }
 
 // Delete is called when the provider must delete the resource.
