@@ -36,6 +36,7 @@ var (
 	_ resource.ResourceWithImportState      = &ServiceVCLResource{}
 )
 
+// NewServiceVCLResource returns a new Terraform resource instance.
 func NewServiceVCLResource() resource.Resource {
 	return &ServiceVCLResource{}
 }
