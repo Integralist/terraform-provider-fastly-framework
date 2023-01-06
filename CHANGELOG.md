@@ -1,3 +1,16 @@
-## 0.1.0 (Unreleased)
+## 0.2.0 (Unreleased)
 
+<!--
+BREAKING CHANGES:
+NOTES:
 FEATURES:
+ENHANCEMENTS:
+BUG FIXES:
+DOCUMENTATION:
+-->
+
+## 0.1.0 (Month Date, Year)
+
+BREAKING CHANGES:
+
+- 
