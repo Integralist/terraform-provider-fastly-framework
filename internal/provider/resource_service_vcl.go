@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
 //go:embed docs/service_vcl.md
@@ -56,7 +57,7 @@ type ServiceVCLResourceModel struct {
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
 	// Domains is a nested set attribute for the domain(s) associated with the service.
-	Domains []ServiceDomain `tfsdk:"domains"`
+	Domains []models.ServiceDomain `tfsdk:"domains"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -69,16 +70,6 @@ type ServiceVCLResourceModel struct {
 	Reuse types.Bool `tfsdk:"reuse"`
 	// Version is the latest service version the provider will clone from.
 	Version types.Int64 `tfsdk:"version"`
-}
-
-// ServiceDomain is a nested set attribute for the domain(s) associated with the service.
-type ServiceDomain struct {
-	// Comment is an optional comment about the domain.
-	Comment types.String `tfsdk:"comment"`
-	// ID is a unique identifier used by the provider to determine changes within a nested set type.
-	ID types.String `tfsdk:"id"`
-	// Name is the domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource.
-	Name types.String `tfsdk:"name"`
 }
 
 // Metadata should return the full name of the resource.
@@ -346,14 +337,14 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	var domains []ServiceDomain
+	var domains []models.ServiceDomain
 
 	// TODO: Rename domainData to domain once moved to separate package.
 	for _, domainData := range clientDomainResp {
 		domainName := domainData.GetName()
 		digest := sha256.Sum256([]byte(domainName))
 
-		sd := ServiceDomain{
+		sd := models.ServiceDomain{
 			ID: types.StringValue(fmt.Sprintf("%x", digest)),
 		}
 
@@ -471,7 +462,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// If plan 'key' exists in prior state, then it's modified.
 	// Otherwise resource is new.
 	// If state 'key' doesn't exist in plan, then it's deleted.
-	var added, deleted, modified []ServiceDomain
+	var added, deleted, modified []models.ServiceDomain
 
 	// If domain hashed is found in state, then it already exists and might be modified.
 	// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
