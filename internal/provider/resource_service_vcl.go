@@ -12,9 +12,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
 )
@@ -54,6 +56,10 @@ type ServiceVCLResourceModel struct {
 	Activate types.Bool `tfsdk:"activate"`
 	// Comment is a description field for the service.
 	Comment types.String `tfsdk:"comment"`
+	// DefaultHost is the default host name for the version.
+	DefaultHost types.String `tfsdk:"default_host"`
+	// DefaultTTL is the default time-to-live (TTL) for the version.
+	DefaultTTL types.Int64 `tfsdk:"default_ttl"`
 	// Domains is a nested set attribute for the domain(s) associated with the service.
 	Domains []models.ServiceDomain `tfsdk:"domains"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
@@ -66,6 +72,10 @@ type ServiceVCLResourceModel struct {
 	Name types.String `tfsdk:"name"`
 	// Reuse will not delete the service upon `terraform destroy`.
 	Reuse types.Bool `tfsdk:"reuse"`
+	// StaleIfError enables serving a stale object if there is an error.
+	StaleIfError types.Bool `tfsdk:"stale_if_error"`
+	// StaleIfErrorTTL is the default time-to-live (TTL) for serving the stale object for the version.
+	StaleIfErrorTTL types.Int64 `tfsdk:"stale_if_error_ttl"`
 	// Version is the latest service version the provider will clone from.
 	Version types.Int64 `tfsdk:"version"`
 }
@@ -79,13 +89,39 @@ func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := schemas.Service()
 
+	// TODO: Implement Service settings logic.
+	// https://developer.fastly.com/reference/api/vcl-services/settings/
+	attrs["default_ttl"] = schema.Int64Attribute{
+		MarkdownDescription: "The default Time-to-live (TTL) for requests",
+		Optional:            true,
+		PlanModifiers: []planmodifier.Int64{
+			helpers.Int64DefaultModifier{Default: 3600},
+		},
+	}
+	attrs["default_host"] = schema.StringAttribute{
+		MarkdownDescription: "The default hostname",
+		Optional:            true,
+	}
+	attrs["stale_if_error"] = schema.BoolAttribute{
+		MarkdownDescription: "Enables serving a stale object if there is an error",
+		Optional:            true,
+		PlanModifiers: []planmodifier.Bool{
+			helpers.BoolDefaultModifier{Default: false},
+		},
+	}
+	attrs["stale_if_error_ttl"] = schema.Int64Attribute{
+		MarkdownDescription: "The default time-to-live (TTL) for serving the stale object for the version",
+		Optional:            true,
+		PlanModifiers: []planmodifier.Int64{
+			helpers.Int64DefaultModifier{Default: 43200},
+		},
+	}
+
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: resourceDescription,
 
-		// TODO: Implement top-level attributes like the Service settings API.
-		// https://developer.fastly.com/reference/api/vcl-services/settings/
-		// https://registry.terraform.io/providers/fastly/fastly/latest/docs/resources/service_vcl#schema
+		// Attributes is the mapping of underlying attribute names to attribute definitions.
 		Attributes: attrs,
 	}
 }
