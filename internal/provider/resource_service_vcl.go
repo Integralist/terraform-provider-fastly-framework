@@ -61,7 +61,7 @@ type ServiceVCLResourceModel struct {
 	// DefaultTTL is the default time-to-live (TTL) for the version.
 	DefaultTTL types.Int64 `tfsdk:"default_ttl"`
 	// Domains is a nested set attribute for the domain(s) associated with the service.
-	Domains []models.ServiceDomain `tfsdk:"domains"`
+	Domains []models.Domain `tfsdk:"domains"`
 	// Force ensures a service will be fully deleted upon `terraform destroy`.
 	Force types.Bool `tfsdk:"force"`
 	// ID is a unique ID for the service.
@@ -299,14 +299,14 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	var domains []models.ServiceDomain
+	var domains []models.Domain
 
 	// TODO: Rename domainData to domain once moved to separate package.
 	for _, domainData := range clientDomainResp {
 		domainName := domainData.GetName()
 		digest := sha256.Sum256([]byte(domainName))
 
-		sd := models.ServiceDomain{
+		sd := models.Domain{
 			ID: types.StringValue(fmt.Sprintf("%x", digest)),
 		}
 
@@ -424,7 +424,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// If plan 'key' exists in prior state, then it's modified.
 	// Otherwise resource is new.
 	// If state 'key' doesn't exist in plan, then it's deleted.
-	var added, deleted, modified []models.ServiceDomain
+	var added, deleted, modified []models.Domain
 
 	// If domain hashed is found in state, then it already exists and might be modified.
 	// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
