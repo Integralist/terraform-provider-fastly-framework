@@ -24,10 +24,16 @@ import (
 var resourceDescription string
 
 // Ensure provider defined types fully satisfy framework interfaces
+//
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#Resource
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigValidators
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigure
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithImportState
 var (
 	_ resource.Resource                     = &ServiceVCLResource{}
-	_ resource.ResourceWithImportState      = &ServiceVCLResource{}
 	_ resource.ResourceWithConfigValidators = &ServiceVCLResource{}
+	_ resource.ResourceWithConfigure        = &ServiceVCLResource{}
+	_ resource.ResourceWithImportState      = &ServiceVCLResource{}
 )
 
 func NewServiceVCLResource() resource.Resource {
@@ -35,20 +41,6 @@ func NewServiceVCLResource() resource.Resource {
 }
 
 // ServiceVCLResource defines the resource implementation.
-//
-// It implements multiple Terraform interfaces:
-//
-// - `Resource`
-//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#Resource
-//
-// - `ResourceWithConfigValidators`
-//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigValidators
-//
-// - `ResourceWithConfigure`
-//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithConfigure
-//
-// - `ResourceWithImportState`
-//    https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ResourceWithImportState
 type ServiceVCLResource struct {
 	// client is a preconfigured instance of the Fastly API client.
 	client *fastly.APIClient
