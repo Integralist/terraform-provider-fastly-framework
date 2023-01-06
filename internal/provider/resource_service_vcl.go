@@ -91,6 +91,9 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: resourceDescription,
 
+		// TODO: Implement top-level attributes like the Service settings API.
+		// https://developer.fastly.com/reference/api/vcl-services/settings/
+		// https://registry.terraform.io/providers/fastly/fastly/latest/docs/resources/service_vcl#schema
 		Attributes: map[string]schema.Attribute{
 			"activate": schema.BoolAttribute{
 				Computed:            true,
