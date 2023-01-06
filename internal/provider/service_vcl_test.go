@@ -1,3 +1,25 @@
+// IMPORTANT: The resource tests need to be part of the provider package.
+// This is because of an import cycle issue I couldn't workaround.
+//
+// The provider package exposes a New() function which is called by
+// ../../main.go) so it can return an instance of the Fastly Terraform provider.
+// The New() function is also required by ./provider_test.go, which defines a
+// couple of test helpers.
+//
+// The provider package needs to import the resource package so it can reference
+// the required resources that construct the provider.
+//
+// This means we're not able to move the provider package's test helpers
+// (./provider_test.go) into a separate package that both the provider package
+// and resource package can reference because the test helpers need access to
+// the provider package.
+//
+// Package import cycle example:
+// Provider [imports] Resource [imports] Test Helper [imports] Provider
+//
+// Yes, it's not ideal having all resource test files next to provider.
+// But it was the lesser of the evils as far as package structure is concerned.
+
 package provider
 
 import (

@@ -1,6 +1,8 @@
 package models
 
-import "github.com/hashicorp/terraform-plugin-framework/types"
+import (
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
 
 // Domain is a nested set attribute for the domain(s) associated with a service.
 type Domain struct {

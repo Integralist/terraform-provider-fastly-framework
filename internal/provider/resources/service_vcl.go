@@ -1,4 +1,4 @@
-package provider
+package resources
 
 import (
 	"context"
@@ -48,36 +48,6 @@ type ServiceVCLResource struct {
 	client *fastly.APIClient
 	// clientCtx contains the user's API token.
 	clientCtx context.Context
-}
-
-// ServiceVCLResourceModel describes the resource data model.
-type ServiceVCLResourceModel struct {
-	// Activate controls whether the service should be activated.
-	Activate types.Bool `tfsdk:"activate"`
-	// Comment is a description field for the service.
-	Comment types.String `tfsdk:"comment"`
-	// DefaultHost is the default host name for the version.
-	DefaultHost types.String `tfsdk:"default_host"`
-	// DefaultTTL is the default time-to-live (TTL) for the version.
-	DefaultTTL types.Int64 `tfsdk:"default_ttl"`
-	// Domains is a nested set attribute for the domain(s) associated with the service.
-	Domains []models.Domain `tfsdk:"domains"`
-	// Force ensures a service will be fully deleted upon `terraform destroy`.
-	Force types.Bool `tfsdk:"force"`
-	// ID is a unique ID for the service.
-	ID types.String `tfsdk:"id"`
-	// LastActive is the last known active service version.
-	LastActive types.Int64 `tfsdk:"last_active"`
-	// Name is the service name.
-	Name types.String `tfsdk:"name"`
-	// Reuse will not delete the service upon `terraform destroy`.
-	Reuse types.Bool `tfsdk:"reuse"`
-	// StaleIfError enables serving a stale object if there is an error.
-	StaleIfError types.Bool `tfsdk:"stale_if_error"`
-	// StaleIfErrorTTL is the default time-to-live (TTL) for serving the stale object for the version.
-	StaleIfErrorTTL types.Int64 `tfsdk:"stale_if_error_ttl"`
-	// Version is the latest service version the provider will clone from.
-	Version types.Int64 `tfsdk:"version"`
 }
 
 // Metadata should return the full name of the resource.
@@ -130,7 +100,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 // Config and planned state values should be read from the CreateRequest.
 // New state values set on the CreateResponse.
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan *ServiceVCLResourceModel
+	var plan *models.ServiceVCLResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -176,44 +146,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		plan.LastActive = plan.Version
 	}
 
-	// TODO: Abstract domains (and other resources)
-	// https://pkg.go.dev/github.com/mitchellh/mapstructure might help for update diffing.
-	for i := range plan.Domains {
-		domain := &plan.Domains[i]
-
-		if domain.ID.IsUnknown() {
-			// NOTE: We create a consistent hash of the domain name for the ID.
-			// Originally I used github.com/google/uuid but thought it would be more
-			// appropriate to use a hash of the domain name.
-			digest := sha256.Sum256([]byte(domain.Name.ValueString()))
-			domain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, *id, int32(version))
-
-		if !domain.Comment.IsNull() {
-			clientReq.Comment(domain.Comment.ValueString())
-		}
-
-		if !domain.Name.IsNull() {
-			clientReq.Name(domain.Name.ValueString())
-		}
-
-		_, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
-			return
-		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-			return
-		}
+	if err := DomainCreate(ctx, r, plan.Domains, *id, version, resp); err != nil {
+		return
 	}
 
 	if plan.Activate.ValueBool() {
@@ -241,7 +175,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 // TODO: How to handle service type mismatch when importing.
 // TODO: How to handle name/comment which are versionless and need `activate`.
 func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state *ServiceVCLResourceModel
+	var state *models.ServiceVCLResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -389,8 +323,8 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *ServiceVCLResourceModel
-	var state *ServiceVCLResourceModel
+	var plan *models.ServiceVCLResourceModel
+	var state *models.ServiceVCLResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -640,7 +574,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 // If execution completes without error, the framework will automatically call
 // DeleteResponse.State.RemoveResource().
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state *ServiceVCLResourceModel
+	var state *models.ServiceVCLResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
