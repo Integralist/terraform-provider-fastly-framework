@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-	"crypto/sha256"
 	_ "embed"
 	"fmt"
 	"net/http"
@@ -150,6 +149,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// https://github.com/fastly/terraform-provider-fastly/issues/631
 	// This might not be a problem with the new framework.
 
+	// FIXME: Build abstraction for registering, checking, processing nested blocks.
+	// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/service_attribute_definition.go#L13-L30
 	if err := DomainCreate(ctx, r, plan.Domains, *id, version, resp); err != nil {
 		return
 	}
@@ -259,74 +260,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// NOTE: Name and Comment are 'versionless' attributes.
 	// Other nested attributes will need a new service version.
-	var shouldClone bool
 
-	// FIXME: We need an abstractions like SetDiff from the original provider.
-	// We compare the plan set to the state set and determine what changed.
-	// e.g. 'added', 'modified', 'deleted' and calls relevant API.
-	// Needs a 'key' for each resource (sometimes 'name' but has to be unique).
-	// Unless we switch to MapNestedAttribute which provides a key by design.
-	//
-	// If plan 'key' exists in prior state, then it's modified.
-	// Otherwise resource is new.
-	// If state 'key' doesn't exist in plan, then it's deleted.
-	var added, deleted, modified []models.Domain
-
-	// If domain hashed is found in state, then it already exists and might be modified.
-	// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
-	// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
-
-	// NOTE: We have to manually track each resource in a nested set attribute.
-	// For domains this means computing an ID for each domain, then calculating
-	// whether a domain has been added, deleted or modified. If any of those
-	// conditions are met, then we must clone the current service version.
-	// TODO: Abstract domain and other resources
-	for i := range plan.Domains {
-		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &plan.Domains[i]
-
-		// ID is a computed value so we need to regenerate it from the domain name.
-		if planDomain.ID.IsUnknown() {
-			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
-			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		var foundDomain bool
-		for _, stateDomain := range state.Domains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				// NOTE: It's not possible for the domain's Name field to not match.
-				// This is because we first check the ID field matches, and that is
-				// based on a hash of the domain name. Because of this we don't bother
-				// checking if planDomain.Name and stateDomain.Name are not equal.
-				if !planDomain.Comment.Equal(stateDomain.Comment) {
-					shouldClone = true
-					modified = append(modified, *planDomain)
-				}
-				break
-			}
-		}
-
-		if !foundDomain {
-			shouldClone = true
-			added = append(added, *planDomain)
-		}
-	}
-
-	for _, stateDomain := range state.Domains {
-		var foundDomain bool
-		for _, planDomain := range plan.Domains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				break
-			}
-		}
-
-		if !foundDomain {
-			shouldClone = true
-			deleted = append(deleted, stateDomain)
-		}
-	}
+	shouldClone, added, deleted, modified := DomainChanges(plan, state)
 
 	var serviceVersionToActivate int32
 	if shouldClone {
