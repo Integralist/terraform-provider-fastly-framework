@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
@@ -174,7 +176,11 @@ func DomainRead(
 	return nil
 }
 
-// FIXME: We need an abstractions like SetDiff from the original provider.
+func testing(service interfaces.Service) {
+	fmt.Printf("service type: %+v\n", service.GetType() == enums.VCL)
+}
+
+// FIXME: We need an abstraction like SetDiff from the original provider.
 // We compare the plan set to the state set and determine what changed.
 // e.g. 'added', 'modified', 'deleted' and calls relevant API.
 // Needs a 'key' for each resource (sometimes 'name' but has to be unique).
@@ -191,6 +197,7 @@ func DomainChanges(
 	plan *models.ServiceVCLResourceModel,
 	state *models.ServiceVCLResourceModel,
 ) (shouldClone bool, added, deleted, modified []models.Domain) {
+	testing(plan)
 	// NOTE: We have to manually track each resource in a nested set attribute.
 	// For domains this means computing an ID for each domain, then calculating
 	// whether a domain has been added, deleted or modified. If any of those
