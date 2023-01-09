@@ -146,6 +146,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		plan.LastActive = plan.Version
 	}
 
+	// TODO: Ensure API errors are managed accordingly.
+	// https://github.com/fastly/terraform-provider-fastly/issues/631
+	// This might not be a problem with the new framework.
+
 	if err := DomainCreate(ctx, r, plan.Domains, *id, version, resp); err != nil {
 		return
 	}
