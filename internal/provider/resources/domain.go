@@ -16,22 +16,42 @@ import (
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
-func DomainCreate(
+// NewDomainResource returns a new resource entity.
+func NewDomainResource() interfaces.Resource {
+	return &DomainResource{}
+}
+
+// DomainResource represents a Fastly entity.
+type DomainResource struct {
+	//
+}
+
+// Create is called when the provider must create a new resource.
+// Config and planned state values should be read from the CreateRequest.
+// New state values set on the CreateResponse.
+func (r *DomainResource) Create(
 	ctx context.Context,
-	r *ServiceVCLResource,
-	domains []models.Domain,
-	id string,
-	version int32,
+	req resource.CreateRequest,
 	resp *resource.CreateResponse,
+	client *fastly.APIClient,
+	clientCtx context.Context,
+	serviceID string,
+	serviceVersion int32,
+	model interfaces.NestedModel,
 ) error {
-	// TODO: Consider mapstructure for abstracting at a more generic level.
-	// https://pkg.go.dev/github.com/mitchellh/mapstructure might help for update diffing.
+	if model.GetType() != enums.Domain {
+		return errors.New("unexpected resource model (expected a domain model)")
+	}
 
-	// TODO: Define actual error message.
-	commonError := errors.New("todo")
+	domains, ok := model.(models.Domains)
+	if !ok {
+		return fmt.Errorf("unable to convert model %T into the expected type", model)
+	}
 
-	for i := range domains {
-		domain := &domains[i]
+	commonError := errors.New("failed to create domain resource")
+
+	for i := range domains.Items {
+		domain := &domains.Items[i]
 
 		if domain.ID.IsUnknown() {
 			// NOTE: We create a consistent hash of the domain name for the ID.
@@ -45,7 +65,7 @@ func DomainCreate(
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, id, version)
+		clientReq := client.DomainAPI.CreateDomain(clientCtx, serviceID, serviceVersion)
 
 		if !domain.Comment.IsNull() {
 			clientReq.Comment(domain.Comment.ValueString())
@@ -69,6 +89,35 @@ func DomainCreate(
 	}
 
 	return nil
+}
+
+// Read is called when the provider must read resource values in order to update state.
+// Planned state values should be read from the ReadRequest.
+// New state values set on the ReadResponse.
+func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) error {
+	fmt.Printf("%+v\n", "Domain Read called")
+	return nil
+}
+
+// Update is called to update the state of the resource.
+// Config, planned state, and prior state values should be read from the UpdateRequest.
+// New state values set on the UpdateResponse.
+func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) error {
+	fmt.Printf("%+v\n", "Domain Update called")
+	return nil
+}
+
+// Delete is called when the provider must delete the resource.
+// Config values may be read from the DeleteRequest.
+func (r *DomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) error {
+	fmt.Printf("%+v\n", "Domain Delete called")
+	return nil
+}
+
+// HasChanges indicates if the nested resource contains configuration changes.
+func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfaces.ServiceModel) bool {
+	fmt.Printf("%+v\n", "Domain HasChanges called")
+	return true
 }
 
 func DomainRead(
@@ -176,7 +225,7 @@ func DomainRead(
 	return nil
 }
 
-func testing(service interfaces.Service) {
+func testing(service interfaces.ServiceModel) {
 	if service.GetType() == enums.VCL {
 		if v, ok := service.(*models.ServiceVCLResourceModel); ok {
 			fmt.Printf("service converted: %T %+v\n", v, v)

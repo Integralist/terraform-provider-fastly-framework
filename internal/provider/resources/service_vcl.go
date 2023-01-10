@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
 )
@@ -37,8 +38,14 @@ var (
 )
 
 // NewServiceVCLResource returns a new Terraform resource instance.
-func NewServiceVCLResource() resource.Resource {
-	return &ServiceVCLResource{}
+func NewServiceVCLResource() func() resource.Resource {
+	return func() resource.Resource {
+		return &ServiceVCLResource{
+			resources: []interfaces.Resource{
+				NewDomainResource(),
+			},
+		}
+	}
 }
 
 // ServiceVCLResource defines the resource implementation.
@@ -47,6 +54,8 @@ type ServiceVCLResource struct {
 	client *fastly.APIClient
 	// clientCtx contains the user's API token.
 	clientCtx context.Context
+	// resources is a list of nested resources.
+	resources []interfaces.Resource
 }
 
 // Metadata should return the full name of the resource.
@@ -150,10 +159,19 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// https://stackoverflow.com/questions/75059592/how-should-terraform-provider-handle-resource-error-when-it-consists-of-multiple
 	// The question is whether we want to fix this or not.
 
-	// FIXME: Build abstraction for registering, checking, processing nested blocks.
-	// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/service_attribute_definition.go#L13-L30
-	if err := DomainCreate(ctx, r, plan.Domains, *id, version, resp); err != nil {
-		return
+	for _, nestedResource := range r.resources {
+		if err := nestedResource.Create(
+			ctx,
+			req,
+			resp,
+			r.client,
+			r.clientCtx,
+			*id,
+			version,
+			models.Domains{Items: plan.Domains},
+		); err != nil {
+			return
+		}
 	}
 
 	if plan.Activate.ValueBool() {

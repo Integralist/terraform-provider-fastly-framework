@@ -49,10 +49,7 @@ func (p *FastlyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
-
-	// Example client configuration for data sources and resources
+	// Client configuration for data sources and resources
 	cfg := fastly.NewConfiguration()
 	client := fastly.NewAPIClient(cfg)
 
@@ -62,7 +59,7 @@ func (p *FastlyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 func (p *FastlyProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		resources.NewServiceVCLResource,
+		resources.NewServiceVCLResource(),
 	}
 }
 
