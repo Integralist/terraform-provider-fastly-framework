@@ -147,7 +147,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// TODO: Ensure API errors are managed accordingly.
 	// https://github.com/fastly/terraform-provider-fastly/issues/631
-	// This might not be a problem with the new framework.
+	// https://stackoverflow.com/questions/75059592/how-should-terraform-provider-handle-resource-error-when-it-consists-of-multiple
+	// The question is whether we want to fix this or not.
 
 	// FIXME: Build abstraction for registering, checking, processing nested blocks.
 	// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/service_attribute_definition.go#L13-L30

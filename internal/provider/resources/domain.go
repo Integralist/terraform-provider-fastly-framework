@@ -177,7 +177,13 @@ func DomainRead(
 }
 
 func testing(service interfaces.Service) {
-	fmt.Printf("service type: %+v\n", service.GetType() == enums.VCL)
+	if service.GetType() == enums.VCL {
+		if v, ok := service.(*models.ServiceVCLResourceModel); ok {
+			fmt.Printf("service converted: %T %+v\n", v, v)
+		} else {
+			fmt.Printf("service data: %T %+v\n", service, service)
+		}
+	}
 }
 
 // FIXME: We need an abstraction like SetDiff from the original provider.
