@@ -174,7 +174,6 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 			ServiceVersion: version,
 			State:          plan,
 		}
-
 		if err := nestedResource.Create(ctx, req, resp, api, serviceData); err != nil {
 			return
 		}
@@ -258,7 +257,6 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			ServiceVersion: int32(state.Version.ValueInt64()),
 			State:          state,
 		}
-
 		if err := nestedResource.Read(ctx, req, resp, api, serviceData); err != nil {
 			return
 		}
