@@ -19,6 +19,7 @@ type Domain struct {
 // interfaces.NestedModel (consumed by interfaces.Resource methods).
 type Domains struct {
 	Items []Domain
+	State any
 }
 
 func (d Domains) GetType() enums.NestedType {

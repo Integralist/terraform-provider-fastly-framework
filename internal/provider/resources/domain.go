@@ -43,15 +43,15 @@ func (r *DomainResource) Create(
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
-	domains, ok := model.(models.Domains)
+	parentModel, ok := model.(models.Domains)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", model)
 	}
 
 	commonError := errors.New("failed to create domain resource")
 
-	for i := range domains.Items {
-		domain := &domains.Items[i]
+	for i := range parentModel.Items {
+		domain := &parentModel.Items[i]
 
 		if domain.ID.IsUnknown() {
 			// NOTE: We create a consistent hash of the domain name for the ID.
@@ -94,42 +94,27 @@ func (r *DomainResource) Create(
 // Read is called when the provider must read resource values in order to update state.
 // Planned state values should be read from the ReadRequest.
 // New state values set on the ReadResponse.
-func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) error {
-	fmt.Printf("%+v\n", "Domain Read called")
-	return nil
-}
-
-// Update is called to update the state of the resource.
-// Config, planned state, and prior state values should be read from the UpdateRequest.
-// New state values set on the UpdateResponse.
-func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) error {
-	fmt.Printf("%+v\n", "Domain Update called")
-	return nil
-}
-
-// Delete is called when the provider must delete the resource.
-// Config values may be read from the DeleteRequest.
-func (r *DomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) error {
-	fmt.Printf("%+v\n", "Domain Delete called")
-	return nil
-}
-
-// HasChanges indicates if the nested resource contains configuration changes.
-func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfaces.ServiceModel) bool {
-	fmt.Printf("%+v\n", "Domain HasChanges called")
-	return true
-}
-
-func DomainRead(
+func (r *DomainResource) Read(
 	ctx context.Context,
-	r *ServiceVCLResource,
-	clientResp *fastly.ServiceDetail,
-	state *models.ServiceVCLResourceModel,
+	req resource.ReadRequest,
 	resp *resource.ReadResponse,
+	client *fastly.APIClient,
+	clientCtx context.Context,
+	serviceID string,
+	serviceVersion int32,
+	model interfaces.NestedModel,
 ) error {
-	clientDomainReq := r.client.DomainAPI.ListDomains(r.clientCtx, clientResp.GetID(), int32(state.Version.ValueInt64()))
+	if model.GetType() != enums.Domain {
+		return errors.New("unexpected resource model (expected a domain model)")
+	}
 
-	// TODO: After abstraction rename back to clientResp.
+	parentModel, ok := model.(models.Domains)
+	if !ok {
+		return fmt.Errorf("unable to convert model %T into the expected type", model)
+	}
+
+	clientDomainReq := client.DomainAPI.ListDomains(clientCtx, serviceID, serviceVersion)
+
 	clientDomainResp, httpResp, err := clientDomainReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.ListDomains error", map[string]any{"http_resp": httpResp})
@@ -142,7 +127,7 @@ func DomainRead(
 		return err
 	}
 
-	var domains []models.Domain
+	var remoteDomains []models.Domain
 
 	// TODO: Rename domainData to domain once moved to separate package.
 	for _, domainData := range clientDomainResp {
@@ -178,7 +163,7 @@ func DomainRead(
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
 			// See the above WARNING for the details.
-			for _, stateDomain := range state.Domains {
+			for _, stateDomain := range parentModel.Items {
 				if stateDomain.Name.ValueString() == domainName {
 					if stateDomain.Comment.IsNull() {
 						sd.Comment = types.StringNull()
@@ -204,7 +189,7 @@ func DomainRead(
 			// domain comment (they'll more likely just omit the attribute). So we'll
 			// presume that if we're in an 'import' scenario and the comment value is
 			// an empty string, that we should set the comment attribute to null.
-			if len(state.Domains) == 0 && *v == "" {
+			if len(parentModel.Items) == 0 && *v == "" {
 				sd.Comment = types.StringNull()
 			}
 		} else {
@@ -217,12 +202,37 @@ func DomainRead(
 			sd.Name = types.StringValue(*v)
 		}
 
-		domains = append(domains, sd)
+		remoteDomains = append(remoteDomains, sd)
 	}
 
-	state.Domains = domains
+	serviceModel, ok := parentModel.State.(*models.ServiceVCLResourceModel)
+	if !ok {
+		return fmt.Errorf("unable to convert model %T into the expected type", parentModel.State)
+	}
+	serviceModel.Domains = remoteDomains
 
 	return nil
+}
+
+// Update is called to update the state of the resource.
+// Config, planned state, and prior state values should be read from the UpdateRequest.
+// New state values set on the UpdateResponse.
+func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) error {
+	fmt.Printf("%+v\n", "Domain Update called")
+	return nil
+}
+
+// Delete is called when the provider must delete the resource.
+// Config values may be read from the DeleteRequest.
+func (r *DomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) error {
+	fmt.Printf("%+v\n", "Domain Delete called")
+	return nil
+}
+
+// HasChanges indicates if the nested resource contains configuration changes.
+func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfaces.ServiceModel) bool {
+	fmt.Printf("%+v\n", "Domain HasChanges called")
+	return true
 }
 
 func testing(service interfaces.ServiceModel) {

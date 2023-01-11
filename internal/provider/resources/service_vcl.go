@@ -241,8 +241,26 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		state.LastActive = types.Int64Value(version)
 	}
 
-	if err := DomainRead(ctx, r, clientResp, state, resp); err != nil {
-		return
+	for _, nestedResource := range r.resources {
+		serviceID := state.ID.ValueString()
+		serviceVersion := int32(state.Version.ValueInt64())
+
+		// FIXME: How to abstract this as we can't reference specific model type?
+		// TODO: rename to models.Service
+		model := models.Domains{State: state, Items: state.Domains}
+
+		if err := nestedResource.Read(
+			ctx,
+			req,
+			resp,
+			r.client,
+			r.clientCtx,
+			serviceID,
+			serviceVersion,
+			model,
+		); err != nil {
+			return
+		}
 	}
 
 	// Save updated data into Terraform state

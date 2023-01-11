@@ -38,7 +38,16 @@ type Resource interface {
 	// Read is called when the provider must read resource values in order to update state.
 	// Planned state values should be read from the ReadRequest.
 	// New state values set on the ReadResponse.
-	Read(context.Context, resource.ReadRequest, *resource.ReadResponse) error
+	Read(
+		ctx context.Context,
+		req resource.ReadRequest,
+		resp *resource.ReadResponse,
+		client *fastly.APIClient,
+		clientCtx context.Context,
+		serviceID string,
+		serviceVersion int32,
+		model NestedModel,
+	) error
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
 	// New state values set on the UpdateResponse.
