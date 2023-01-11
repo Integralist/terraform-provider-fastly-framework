@@ -44,65 +44,22 @@ func (r *DomainResource) Create(
 	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
-	if serviceData.GetNestedType() != r.Type {
-		return errors.New("unexpected resource model (expected a domain model)")
-	}
-
 	service, ok := serviceData.(models.Service)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
-	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
-	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
-	}
-
-	commonError := errors.New("failed to create domain resource")
-
-	for i := range serviceModel.Domains {
-		domain := &serviceModel.Domains[i]
-
-		if domain.ID.IsUnknown() {
-			// NOTE: We create a consistent hash of the domain name for the ID.
-			// Originally I used github.com/google/uuid but realised it would be more
-			// appropriate to use a hash of the domain name.
-			digest := sha256.Sum256([]byte(domain.Name.ValueString()))
-			domain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := api.Client.DomainAPI.CreateDomain(
-			api.ClientCtx,
-			service.GetServiceID(),
-			service.GetServiceVersion(),
-		)
-
-		if !domain.Comment.IsNull() {
-			clientReq.Comment(domain.Comment.ValueString())
-		}
-
-		if !domain.Name.IsNull() {
-			clientReq.Name(domain.Name.ValueString())
-		}
-
-		_, httpResp, err := clientReq.Execute()
+	// TODO: Instead of createVCL/createCompute implement generic function.
+	switch serviceData.GetType() {
+	case enums.Compute:
+		// ...
+	case enums.VCL:
+		serviceModel, err := createVCL(ctx, resp, service, service.State, api)
 		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
-			return commonError
+			return err
 		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-			return commonError
-		}
+		service.State = serviceModel
 	}
-
-	service.State = serviceModel
 
 	return nil
 }
@@ -117,16 +74,11 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
-	if serviceData.GetNestedType() != r.Type {
-		return errors.New("unexpected resource model (expected a domain model)")
-	}
-
 	service, ok := serviceData.(models.Service)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
-	// FIXME: How do we abstract the type assertion (e.g. when we have compute)
 	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
@@ -425,4 +377,64 @@ func DomainUpdate(
 	}
 
 	return nil
+}
+
+// createVCL is the VCL Fastly Service variation of the Create logic.
+func createVCL(
+	ctx context.Context,
+	resp *resource.CreateResponse,
+	service models.Service,
+	state any,
+	api helpers.API,
+) (*models.ServiceVCLResourceModel, error) {
+	serviceModel, ok := state.(*models.ServiceVCLResourceModel)
+	if !ok {
+		return nil, fmt.Errorf("unable to convert model %T into the expected type", state)
+	}
+
+	commonError := errors.New("failed to create domain resource")
+
+	for i := range serviceModel.Domains {
+		domain := &serviceModel.Domains[i]
+
+		if domain.ID.IsUnknown() {
+			// NOTE: We create a consistent hash of the domain name for the ID.
+			// Originally I used github.com/google/uuid but realised it would be more
+			// appropriate to use a hash of the domain name.
+			digest := sha256.Sum256([]byte(domain.Name.ValueString()))
+			domain.ID = types.StringValue(fmt.Sprintf("%x", digest))
+		}
+
+		// TODO: Check if the version we have is correct.
+		// e.g. should it be latest 'active' or just latest version?
+		// It should depend on `activate` field but also whether the service pre-exists.
+		// The service might exist if it was imported or a secondary config run.
+		clientReq := api.Client.DomainAPI.CreateDomain(
+			api.ClientCtx,
+			service.GetServiceID(),
+			service.GetServiceVersion(),
+		)
+
+		if !domain.Comment.IsNull() {
+			clientReq.Comment(domain.Comment.ValueString())
+		}
+
+		if !domain.Name.IsNull() {
+			clientReq.Name(domain.Name.ValueString())
+		}
+
+		_, httpResp, err := clientReq.Execute()
+		if err != nil {
+			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
+			return nil, commonError
+		}
+		if httpResp.StatusCode != http.StatusOK {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+			return nil, commonError
+		}
+	}
+
+	return serviceModel, nil
 }

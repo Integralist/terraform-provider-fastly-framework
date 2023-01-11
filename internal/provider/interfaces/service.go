@@ -6,11 +6,14 @@ import (
 
 // ServiceData represents a nested entity within a Fastly service resource model.
 type ServiceData interface {
-	GetNestedType() enums.NestedType
+	GetType() enums.ServiceType
 	GetServiceID() string
 	GetServiceVersion() int32
 }
 
+// TODO: Is this needed now we have more generalised ServiceData interface?
+// It's only currently referenced by HasChanges method and associated interface.
+//
 // ServiceModel represents a Fastly service resource model.
 // e.g. models.ServiceVCLResourceMode
 type ServiceModel interface {

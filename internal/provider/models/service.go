@@ -1,6 +1,8 @@
 package models
 
-import "github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
+import (
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
+)
 
 // Service is a wrapper to ensure nested entities implement
 // interfaces.Service (consumed by interfaces.Resource methods).
@@ -11,11 +13,11 @@ type Service struct {
 	ServiceVersion int32
 	// State is the complete Terraform state data the nested model can reference.
 	State any
-	// Type is the nested model type (e.g. enums.Domain)
-	Type enums.NestedType
+	// Type is the service resource type (e.g. enums.VCL, enums.Compute)
+	Type enums.ServiceType
 }
 
-func (d Service) GetNestedType() enums.NestedType {
+func (d Service) GetType() enums.ServiceType {
 	return d.Type
 }
 
