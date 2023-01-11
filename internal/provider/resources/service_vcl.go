@@ -109,7 +109,10 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 // Config and planned state values should be read from the CreateRequest.
 // New state values set on the CreateResponse.
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan *models.ServiceVCLResourceModel
+	// TODO: How to use wrapper struct instead?
+	// This would make the nested resources logic easier as I can type assert to a single struct type.
+	// https://discuss.hashicorp.com/t/how-to-use-embedded-struct-for-plan-get/48841
+	var plan *models.ServiceVCL
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -202,7 +205,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 // TODO: How to handle service type mismatch when importing.
 // TODO: How to handle name/comment which are versionless and need `activate`.
 func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state *models.ServiceVCLResourceModel
+	var state *models.ServiceVCL
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -271,8 +274,8 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *models.ServiceVCLResourceModel
-	var state *models.ServiceVCLResourceModel
+	var plan *models.ServiceVCL
+	var state *models.ServiceVCL
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -369,7 +372,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 // If execution completes without error, the framework will automatically call
 // DeleteResponse.State.RemoveResource().
 func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state *models.ServiceVCLResourceModel
+	var state *models.ServiceVCL
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)

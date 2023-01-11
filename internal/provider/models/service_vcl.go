@@ -5,8 +5,8 @@ import (
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 )
 
-// ServiceVCLResourceModel describes the resource data model.
-type ServiceVCLResourceModel struct {
+// ServiceVCL describes the resource data model.
+type ServiceVCL struct {
 	// Activate controls whether the service should be activated.
 	Activate types.Bool `tfsdk:"activate"`
 	// Comment is a description field for the service.
@@ -36,6 +36,6 @@ type ServiceVCLResourceModel struct {
 }
 
 // GetType returns the service type.
-func (s ServiceVCLResourceModel) GetType() enums.ServiceType {
+func (s ServiceVCL) GetType() enums.ServiceType {
 	return enums.VCL
 }

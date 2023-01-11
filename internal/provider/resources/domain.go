@@ -79,7 +79,7 @@ func (r *DomainResource) Read(
 		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
-	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
+	serviceModel, ok := service.State.(*models.ServiceVCL)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
 	}
@@ -220,8 +220,8 @@ func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfac
 // If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
 // We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
 func DomainChanges(
-	plan *models.ServiceVCLResourceModel,
-	state *models.ServiceVCLResourceModel,
+	plan *models.ServiceVCL,
+	state *models.ServiceVCL,
 ) (shouldClone bool, added, deleted, modified []models.Domain) {
 	// NOTE: We have to manually track each resource in a nested set attribute.
 	// For domains this means computing an ID for each domain, then calculating
@@ -282,7 +282,7 @@ func DomainUpdate(
 	ctx context.Context,
 	r *ServiceVCLResource,
 	added, deleted, modified []models.Domain,
-	plan *models.ServiceVCLResourceModel,
+	plan *models.ServiceVCL,
 	resp *resource.UpdateResponse,
 ) error {
 	// IMPORTANT: We need to delete, then add, then update.
@@ -386,8 +386,8 @@ func createVCL(
 	service models.Service,
 	state any,
 	api helpers.API,
-) (*models.ServiceVCLResourceModel, error) {
-	serviceModel, ok := state.(*models.ServiceVCLResourceModel)
+) (*models.ServiceVCL, error) {
+	serviceModel, ok := state.(*models.ServiceVCL)
 	if !ok {
 		return nil, fmt.Errorf("unable to convert model %T into the expected type", state)
 	}
