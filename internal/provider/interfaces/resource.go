@@ -5,21 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 )
-
-// ServiceModel represents a Fastly service resource model.
-// e.g. models.ServiceVCLResourceMode
-type ServiceModel interface {
-	GetType() enums.ServiceType
-}
-
-// ServiceData represents a nested entity within a Fastly service resource model.
-type ServiceData interface {
-	GetNestedType() enums.NestedType
-	GetServiceID() string
-	GetServiceVersion() int32
-}
 
 // Resource represents an entity that has an associated Fastly API endpoint.
 type Resource interface {
