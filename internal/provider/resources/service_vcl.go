@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
@@ -160,16 +161,15 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// The question is whether we want to fix this or not.
 
 	for _, nestedResource := range r.resources {
-		if err := nestedResource.Create(
-			ctx,
-			req,
-			resp,
-			r.client,
-			r.clientCtx,
-			*id,
-			version,
-			models.Domains{Items: plan.Domains},
-		); err != nil {
+		serviceData := models.Service{
+			Items:          plan.Domains,
+			Type:           enums.Domain,
+			ServiceID:      *id,
+			ServiceVersion: version,
+			// State: state,
+		}
+
+		if err := nestedResource.Create(ctx, req, resp, r.client, r.clientCtx, serviceData); err != nil {
 			return
 		}
 	}
@@ -242,23 +242,15 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	for _, nestedResource := range r.resources {
-		serviceID := state.ID.ValueString()
-		serviceVersion := int32(state.Version.ValueInt64())
+		// FIXME: How to abstract this as we can't reference specific enum type?
+		serviceData := models.Service{
+			Type:           enums.Domain,
+			ServiceID:      state.ID.ValueString(),
+			ServiceVersion: int32(state.Version.ValueInt64()),
+			State:          state,
+		}
 
-		// FIXME: How to abstract this as we can't reference specific model type?
-		// TODO: rename to models.Service
-		model := models.Domains{State: state, Items: state.Domains}
-
-		if err := nestedResource.Read(
-			ctx,
-			req,
-			resp,
-			r.client,
-			r.clientCtx,
-			serviceID,
-			serviceVersion,
-			model,
-		); err != nil {
+		if err := nestedResource.Read(ctx, req, resp, r.client, r.clientCtx, serviceData); err != nil {
 			return
 		}
 	}

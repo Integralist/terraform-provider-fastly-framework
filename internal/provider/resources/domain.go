@@ -35,23 +35,21 @@ func (r *DomainResource) Create(
 	resp *resource.CreateResponse,
 	client *fastly.APIClient,
 	clientCtx context.Context,
-	serviceID string,
-	serviceVersion int32,
-	model interfaces.NestedModel,
+	serviceData interfaces.ServiceData,
 ) error {
-	if model.GetType() != enums.Domain {
+	if serviceData.GetNestedType() != enums.Domain {
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
-	parentModel, ok := model.(models.Domains)
+	service, ok := serviceData.(models.Service)
 	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", model)
+		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
 	commonError := errors.New("failed to create domain resource")
 
-	for i := range parentModel.Items {
-		domain := &parentModel.Items[i]
+	for i := range service.Items {
+		domain := &service.Items[i]
 
 		if domain.ID.IsUnknown() {
 			// NOTE: We create a consistent hash of the domain name for the ID.
@@ -65,7 +63,11 @@ func (r *DomainResource) Create(
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := client.DomainAPI.CreateDomain(clientCtx, serviceID, serviceVersion)
+		clientReq := client.DomainAPI.CreateDomain(
+			clientCtx,
+			service.GetServiceID(),
+			service.GetServiceVersion(),
+		)
 
 		if !domain.Comment.IsNull() {
 			clientReq.Comment(domain.Comment.ValueString())
@@ -100,20 +102,23 @@ func (r *DomainResource) Read(
 	resp *resource.ReadResponse,
 	client *fastly.APIClient,
 	clientCtx context.Context,
-	serviceID string,
-	serviceVersion int32,
-	model interfaces.NestedModel,
+	serviceData interfaces.ServiceData,
 ) error {
-	if model.GetType() != enums.Domain {
+	if serviceData.GetNestedType() != enums.Domain {
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
-	parentModel, ok := model.(models.Domains)
+	// FIXME: Do we need a type assertion if we have methods we can use?
+	service, ok := serviceData.(models.Service)
 	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", model)
+		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
-	clientDomainReq := client.DomainAPI.ListDomains(clientCtx, serviceID, serviceVersion)
+	clientDomainReq := client.DomainAPI.ListDomains(
+		clientCtx,
+		service.GetServiceID(),
+		service.GetServiceVersion(),
+	)
 
 	clientDomainResp, httpResp, err := clientDomainReq.Execute()
 	if err != nil {
@@ -163,7 +168,7 @@ func (r *DomainResource) Read(
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
 			// See the above WARNING for the details.
-			for _, stateDomain := range parentModel.Items {
+			for _, stateDomain := range service.Items {
 				if stateDomain.Name.ValueString() == domainName {
 					if stateDomain.Comment.IsNull() {
 						sd.Comment = types.StringNull()
@@ -189,7 +194,7 @@ func (r *DomainResource) Read(
 			// domain comment (they'll more likely just omit the attribute). So we'll
 			// presume that if we're in an 'import' scenario and the comment value is
 			// an empty string, that we should set the comment attribute to null.
-			if len(parentModel.Items) == 0 && *v == "" {
+			if len(service.Items) == 0 && *v == "" {
 				sd.Comment = types.StringNull()
 			}
 		} else {
@@ -205,9 +210,10 @@ func (r *DomainResource) Read(
 		remoteDomains = append(remoteDomains, sd)
 	}
 
-	serviceModel, ok := parentModel.State.(*models.ServiceVCLResourceModel)
+	// FIXME: We need a GetType for VCL vs Compute models
+	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
 	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", parentModel.State)
+		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
 	}
 	serviceModel.Domains = remoteDomains
 
@@ -235,16 +241,6 @@ func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfac
 	return true
 }
 
-func testing(service interfaces.ServiceModel) {
-	if service.GetType() == enums.VCL {
-		if v, ok := service.(*models.ServiceVCLResourceModel); ok {
-			fmt.Printf("service converted: %T %+v\n", v, v)
-		} else {
-			fmt.Printf("service data: %T %+v\n", service, service)
-		}
-	}
-}
-
 // FIXME: We need an abstraction like SetDiff from the original provider.
 // We compare the plan set to the state set and determine what changed.
 // e.g. 'added', 'modified', 'deleted' and calls relevant API.
@@ -262,7 +258,6 @@ func DomainChanges(
 	plan *models.ServiceVCLResourceModel,
 	state *models.ServiceVCLResourceModel,
 ) (shouldClone bool, added, deleted, modified []models.Domain) {
-	testing(plan)
 	// NOTE: We have to manually track each resource in a nested set attribute.
 	// For domains this means computing an ID for each domain, then calculating
 	// whether a domain has been added, deleted or modified. If any of those

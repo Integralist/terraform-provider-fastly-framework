@@ -14,10 +14,11 @@ type ServiceModel interface {
 	GetType() enums.ServiceType
 }
 
-// NestedModel represents a nested entity within a Fastly service resource model.
-// e.g. models.Domain
-type NestedModel interface {
-	GetType() enums.NestedType
+// ServiceData represents a nested entity within a Fastly service resource model.
+type ServiceData interface {
+	GetNestedType() enums.NestedType
+	GetServiceID() string
+	GetServiceVersion() int32
 }
 
 // Resource represents an entity that has an associated Fastly API endpoint.
@@ -31,9 +32,7 @@ type Resource interface {
 		resp *resource.CreateResponse,
 		client *fastly.APIClient,
 		clientCtx context.Context,
-		serviceID string,
-		serviceVersion int32,
-		model NestedModel,
+		serviceData ServiceData,
 	) error
 	// Read is called when the provider must read resource values in order to update state.
 	// Planned state values should be read from the ReadRequest.
@@ -44,9 +43,7 @@ type Resource interface {
 		resp *resource.ReadResponse,
 		client *fastly.APIClient,
 		clientCtx context.Context,
-		serviceID string,
-		serviceVersion int32,
-		model NestedModel,
+		serviceData ServiceData,
 	) error
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
