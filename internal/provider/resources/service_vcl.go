@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
@@ -166,7 +165,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 			ClientCtx: r.clientCtx,
 		}
 		serviceData := models.Service{
-			Type:           enums.Domain,
+			Type:           nestedResource.GetType(),
 			ServiceID:      *id,
 			ServiceVersion: version,
 			State:          plan,
@@ -250,8 +249,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			ClientCtx: r.clientCtx,
 		}
 		serviceData := models.Service{
-			// FIXME: How to abstract this as we can't reference specific enum type?
-			Type:           enums.Domain,
+			Type:           nestedResource.GetType(),
 			ServiceID:      state.ID.ValueString(),
 			ServiceVersion: int32(state.Version.ValueInt64()),
 			State:          state,

@@ -14,5 +14,6 @@ type ServiceData interface {
 // ServiceModel represents a Fastly service resource model.
 // e.g. models.ServiceVCLResourceMode
 type ServiceModel interface {
+	// GetType returns the service type (e.g. enums.VCL, enums.Compute)
 	GetType() enums.ServiceType
 }

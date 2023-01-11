@@ -18,12 +18,20 @@ import (
 
 // NewDomainResource returns a new resource entity.
 func NewDomainResource() interfaces.Resource {
-	return &DomainResource{}
+	return &DomainResource{
+		Type: enums.Domain,
+	}
 }
 
 // DomainResource represents a Fastly entity.
 type DomainResource struct {
-	//
+	// Type is the nested resource type within the Fastly service.
+	Type enums.NestedType
+}
+
+// GetType returns the nested resource type (e.g. enums.Domain)
+func (r *DomainResource) GetType() enums.NestedType {
+	return r.Type
 }
 
 // Create is called when the provider must create a new resource.
@@ -36,7 +44,7 @@ func (r *DomainResource) Create(
 	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
-	if serviceData.GetNestedType() != enums.Domain {
+	if serviceData.GetNestedType() != r.Type {
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
@@ -109,7 +117,7 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
-	if serviceData.GetNestedType() != enums.Domain {
+	if serviceData.GetNestedType() != r.Type {
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
