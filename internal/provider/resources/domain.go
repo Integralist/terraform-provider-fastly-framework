@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
@@ -33,8 +33,7 @@ func (r *DomainResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
-	client *fastly.APIClient,
-	clientCtx context.Context,
+	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
 	if serviceData.GetNestedType() != enums.Domain {
@@ -68,8 +67,8 @@ func (r *DomainResource) Create(
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := client.DomainAPI.CreateDomain(
-			clientCtx,
+		clientReq := api.Client.DomainAPI.CreateDomain(
+			api.ClientCtx,
 			service.GetServiceID(),
 			service.GetServiceVersion(),
 		)
@@ -107,8 +106,7 @@ func (r *DomainResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
-	client *fastly.APIClient,
-	clientCtx context.Context,
+	api helpers.API,
 	serviceData interfaces.ServiceData,
 ) error {
 	if serviceData.GetNestedType() != enums.Domain {
@@ -126,8 +124,8 @@ func (r *DomainResource) Read(
 		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
 	}
 
-	clientDomainReq := client.DomainAPI.ListDomains(
-		clientCtx,
+	clientDomainReq := api.Client.DomainAPI.ListDomains(
+		api.ClientCtx,
 		service.GetServiceID(),
 		service.GetServiceVersion(),
 	)

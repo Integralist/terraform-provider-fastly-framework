@@ -3,8 +3,8 @@ package interfaces
 import (
 	"context"
 
-	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 )
 
@@ -30,8 +30,7 @@ type Resource interface {
 		ctx context.Context,
 		req resource.CreateRequest,
 		resp *resource.CreateResponse,
-		client *fastly.APIClient,
-		clientCtx context.Context,
+		api helpers.API,
 		serviceData ServiceData,
 	) error
 	// Read is called when the provider must read resource values in order to update state.
@@ -41,8 +40,7 @@ type Resource interface {
 		ctx context.Context,
 		req resource.ReadRequest,
 		resp *resource.ReadResponse,
-		client *fastly.APIClient,
-		clientCtx context.Context,
+		api helpers.API,
 		serviceData ServiceData,
 	) error
 	// Update is called to update the state of the resource.

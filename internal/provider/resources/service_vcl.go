@@ -161,6 +161,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// The question is whether we want to fix this or not.
 
 	for _, nestedResource := range r.resources {
+		api := helpers.API{
+			Client:    r.client,
+			ClientCtx: r.clientCtx,
+		}
 		serviceData := models.Service{
 			Type:           enums.Domain,
 			ServiceID:      *id,
@@ -168,7 +172,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 			State:          plan,
 		}
 
-		if err := nestedResource.Create(ctx, req, resp, r.client, r.clientCtx, serviceData); err != nil {
+		if err := nestedResource.Create(ctx, req, resp, api, serviceData); err != nil {
 			return
 		}
 	}
@@ -241,15 +245,19 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	for _, nestedResource := range r.resources {
-		// FIXME: How to abstract this as we can't reference specific enum type?
+		api := helpers.API{
+			Client:    r.client,
+			ClientCtx: r.clientCtx,
+		}
 		serviceData := models.Service{
+			// FIXME: How to abstract this as we can't reference specific enum type?
 			Type:           enums.Domain,
 			ServiceID:      state.ID.ValueString(),
 			ServiceVersion: int32(state.Version.ValueInt64()),
 			State:          state,
 		}
 
-		if err := nestedResource.Read(ctx, req, resp, r.client, r.clientCtx, serviceData); err != nil {
+		if err := nestedResource.Read(ctx, req, resp, api, serviceData); err != nil {
 			return
 		}
 	}
