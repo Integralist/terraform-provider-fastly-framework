@@ -27,6 +27,12 @@ func NewDomainResource() interfaces.Resource {
 type DomainResource struct {
 	// Type is the nested resource type within the Fastly service.
 	Type enums.NestedType
+	// Added represents any new resources.
+	Added []models.Domain
+	// Deleted represents any deleted resources.
+	Deleted []models.Domain
+	// Modified represents any modified resources.
+	Modified []models.Domain
 }
 
 // GetType returns the nested resource type (e.g. enums.Domain)
@@ -114,20 +120,19 @@ func (r *DomainResource) Read(
 // Update is called to update the state of the resource.
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
-func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) error {
+func (r *DomainResource) Update(
+	ctx context.Context,
+	req resource.UpdateRequest,
+	resp *resource.UpdateResponse,
+	api helpers.API,
+	serviceData interfaces.ServiceData,
+) error {
 	fmt.Printf("%+v\n", "Domain Update called")
 	return nil
 }
 
-// Delete is called when the provider must delete the resource.
-// Config values may be read from the DeleteRequest.
-func (r *DomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) error {
-	fmt.Printf("%+v\n", "Domain Delete called")
-	return nil
-}
-
 // HasChanges indicates if the nested resource contains configuration changes.
-func (r *DomainResource) HasChanges(plan interfaces.ServiceModel, state interfaces.ServiceModel) bool {
+func (r *DomainResource) HasChanges(serviceData models.Service) bool {
 	fmt.Printf("%+v\n", "Domain HasChanges called")
 	return true
 }
@@ -153,7 +158,6 @@ func DomainChanges(
 	// For domains this means computing an ID for each domain, then calculating
 	// whether a domain has been added, deleted or modified. If any of those
 	// conditions are met, then we must clone the current service version.
-	// TODO: Abstract domain and other resources
 	for i := range plan.Domains {
 		// NOTE: We need a pointer to the resource struct so we can set an ID.
 		planDomain := &plan.Domains[i]

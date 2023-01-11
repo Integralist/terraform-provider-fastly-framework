@@ -298,10 +298,21 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Other nested attributes will need a new service version.
 
 	shouldClone, added, deleted, modified := DomainChanges(plan, state)
+	for _, nestedResource := range r.resources {
+		serviceData := models.Service{
+			Type:  enums.VCL,
+			State: state,
+			Plan:  plan,
+		}
+		fmt.Printf("%+v\n", nestedResource.HasChanges(serviceData))
+	}
+
+	serviceID := plan.ID.ValueString()
+	serviceVersion := int32(plan.Version.ValueInt64())
 
 	var serviceVersionToActivate int32
 	if shouldClone {
-		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.CloneServiceVersion error", map[string]any{"http_resp": httpResp})
@@ -324,6 +335,21 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	if err := DomainUpdate(ctx, r, added, deleted, modified, plan, resp); err != nil {
 		return
+	}
+	for _, nestedResource := range r.resources {
+		api := helpers.API{
+			Client:    r.client,
+			ClientCtx: r.clientCtx,
+		}
+		serviceData := models.Service{
+			Type:           enums.VCL,
+			ServiceID:      serviceID,
+			ServiceVersion: serviceVersion,
+			State:          plan,
+		}
+		if err := nestedResource.Update(ctx, req, resp, api, serviceData); err != nil {
+			return
+		}
 	}
 
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.

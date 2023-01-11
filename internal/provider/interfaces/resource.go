@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
 // Resource represents an entity that has an associated Fastly API endpoint.
@@ -33,12 +34,21 @@ type Resource interface {
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
 	// New state values set on the UpdateResponse.
-	Update(context.Context, resource.UpdateRequest, *resource.UpdateResponse) error
-	// Delete is called when the provider must delete the resource.
-	// Config values may be read from the DeleteRequest.
-	Delete(context.Context, resource.DeleteRequest, *resource.DeleteResponse) error
+	//
+	// NOTE: The CRUD boundaries are blurred due to Fastly's API model.
+	// The update operation doesn't just handle updates.
+	// It must also handle future additions/deletions.
+	// This is because the parent service only calls 'Create' once.
+	// All other modifications to the service resource will come to 'Update'.
+	Update(
+		ctx context.Context,
+		req resource.UpdateRequest,
+		resp *resource.UpdateResponse,
+		api helpers.API,
+		serviceData ServiceData,
+	) error
 	// HasChanges indicates if the nested resource contains configuration changes.
-	HasChanges(plan ServiceModel, state ServiceModel) bool
+	HasChanges(serviceData models.Service) bool
 	// GetType returns the nested resource type (e.g. enums.Domain)
 	GetType() enums.NestedType
 }
