@@ -46,10 +46,15 @@ func (r *DomainResource) Create(
 		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
 	}
 
+	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
+	if !ok {
+		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
+	}
+
 	commonError := errors.New("failed to create domain resource")
 
-	for i := range service.Items {
-		domain := &service.Items[i]
+	for i := range serviceModel.Domains {
+		domain := &serviceModel.Domains[i]
 
 		if domain.ID.IsUnknown() {
 			// NOTE: We create a consistent hash of the domain name for the ID.
@@ -90,6 +95,8 @@ func (r *DomainResource) Create(
 		}
 	}
 
+	service.State = serviceModel
+
 	return nil
 }
 
@@ -108,10 +115,15 @@ func (r *DomainResource) Read(
 		return errors.New("unexpected resource model (expected a domain model)")
 	}
 
-	// FIXME: Do we need a type assertion if we have methods we can use?
 	service, ok := serviceData.(models.Service)
 	if !ok {
 		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
+	}
+
+	// FIXME: How do we abstract the type assertion (e.g. when we have compute)
+	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
+	if !ok {
+		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
 	}
 
 	clientDomainReq := client.DomainAPI.ListDomains(
@@ -168,7 +180,7 @@ func (r *DomainResource) Read(
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
 			// See the above WARNING for the details.
-			for _, stateDomain := range service.Items {
+			for _, stateDomain := range serviceModel.Domains {
 				if stateDomain.Name.ValueString() == domainName {
 					if stateDomain.Comment.IsNull() {
 						sd.Comment = types.StringNull()
@@ -194,7 +206,7 @@ func (r *DomainResource) Read(
 			// domain comment (they'll more likely just omit the attribute). So we'll
 			// presume that if we're in an 'import' scenario and the comment value is
 			// an empty string, that we should set the comment attribute to null.
-			if len(service.Items) == 0 && *v == "" {
+			if len(serviceModel.Domains) == 0 && *v == "" {
 				sd.Comment = types.StringNull()
 			}
 		} else {
@@ -210,11 +222,6 @@ func (r *DomainResource) Read(
 		remoteDomains = append(remoteDomains, sd)
 	}
 
-	// FIXME: We need a GetType for VCL vs Compute models
-	serviceModel, ok := service.State.(*models.ServiceVCLResourceModel)
-	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", service.State)
-	}
 	serviceModel.Domains = remoteDomains
 
 	return nil

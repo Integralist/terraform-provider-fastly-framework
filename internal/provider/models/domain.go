@@ -18,7 +18,6 @@ type Domain struct {
 // Service is a wrapper to ensure nested entities implement
 // interfaces.NestedModel (consumed by interfaces.Resource methods).
 type Service struct {
-	Items []Domain
 	// ServiceID is the ID for the Fastly service.
 	ServiceID string
 	// ServiceVersion is the current version for the Fastly service.

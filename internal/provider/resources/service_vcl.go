@@ -162,11 +162,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 
 	for _, nestedResource := range r.resources {
 		serviceData := models.Service{
-			Items:          plan.Domains,
 			Type:           enums.Domain,
 			ServiceID:      *id,
 			ServiceVersion: version,
-			// State: state,
+			State:          plan,
 		}
 
 		if err := nestedResource.Create(ctx, req, resp, r.client, r.clientCtx, serviceData); err != nil {
