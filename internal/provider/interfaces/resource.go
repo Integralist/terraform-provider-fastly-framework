@@ -6,8 +6,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
+
+// ResourceData represents the top-level resource and its associated data.
+type ResourceData interface {
+	GetPlan() any
+	GetServiceID() string
+	GetServiceVersion() int32
+	GetState() any
+	GetType() enums.ServiceType
+	SetPlan(plan any)
+	SetState(state any)
+}
 
 // Resource represents an entity that has an associated Fastly API endpoint.
 type Resource interface {
@@ -19,7 +29,7 @@ type Resource interface {
 		req resource.CreateRequest,
 		resp *resource.CreateResponse,
 		api helpers.API,
-		serviceData ServiceData,
+		resourceData ResourceData,
 	) error
 	// Read is called when the provider must read resource values in order to update state.
 	// Planned state values should be read from the ReadRequest.
@@ -29,7 +39,7 @@ type Resource interface {
 		req resource.ReadRequest,
 		resp *resource.ReadResponse,
 		api helpers.API,
-		serviceData ServiceData,
+		resourceData ResourceData,
 	) error
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
@@ -45,10 +55,10 @@ type Resource interface {
 		req resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
-		serviceData ServiceData,
+		resourceData ResourceData,
 	) error
 	// HasChanges indicates if the nested resource contains configuration changes.
-	HasChanges(serviceData models.Service) bool
+	HasChanges(resourceData ResourceData) (bool, error)
 	// GetType returns the nested resource type (e.g. enums.Domain)
 	GetType() enums.NestedType
 }

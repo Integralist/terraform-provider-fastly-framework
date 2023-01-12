@@ -48,33 +48,26 @@ func (r *DomainResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 	api helpers.API,
-	// TODO: Consider if we even need serviceData be an interface.
-	serviceData interfaces.ServiceData,
+	resourceData interfaces.ResourceData,
 ) error {
-	service, ok := serviceData.(models.Service)
-	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
-	}
-
-	// NOTE: We move common logic to separate function due to type assertions.
-	// Tried to implement with generics but was unsuccessful.
-	switch serviceData.GetType() {
+	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		serviceModel, ok := service.State.(*models.ServiceVCL)
+		state := resourceData.GetState()
+		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
-			return fmt.Errorf("unable to convert %T into the expected model type", service.State)
+			return fmt.Errorf("unable to convert %T into the expected model type", state)
 		}
 
-		for i := range serviceModel.Domains {
-			domain := &serviceModel.Domains[i]
-			if err := create(ctx, domain, api, service, resp); err != nil {
+		for i := range stateData.Domains {
+			domain := &stateData.Domains[i]
+			if err := create(ctx, domain, api, resourceData, resp); err != nil {
 				return err
 			}
 		}
 
-		service.State = serviceModel
+		resourceData.SetState(stateData)
 	}
 
 	return nil
@@ -88,30 +81,24 @@ func (r *DomainResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
-	serviceData interfaces.ServiceData,
+	resourceData interfaces.ResourceData,
 ) error {
-	service, ok := serviceData.(models.Service)
-	if !ok {
-		return fmt.Errorf("unable to convert model %T into the expected type", serviceData)
-	}
-
-	// NOTE: We move common logic to separate function due to type assertions.
-	// Tried to implement with generics but was unsuccessful.
-	switch serviceData.GetType() {
+	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		serviceModel, ok := service.State.(*models.ServiceVCL)
+		state := resourceData.GetState()
+		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
-			return fmt.Errorf("unable to convert %T into the expected model type", service.State)
+			return fmt.Errorf("unable to convert %T into the expected model type", state)
 		}
 
-		remoteDomains, err := read(ctx, serviceModel.Domains, api, service, resp)
+		remoteDomains, err := read(ctx, stateData.Domains, api, resourceData, resp)
 		if err != nil {
 			return err
 		}
 
-		serviceModel.Domains = remoteDomains
+		stateData.Domains = remoteDomains
 	}
 
 	return nil
@@ -125,16 +112,57 @@ func (r *DomainResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
-	serviceData interfaces.ServiceData,
+	resourceData interfaces.ResourceData,
 ) error {
-	fmt.Printf("%+v\n", "Domain Update called")
+	switch resourceData.GetType() {
+	case enums.Compute:
+	// ...
+	case enums.VCL:
+		state := resourceData.GetState()
+		stateData, ok := state.(*models.ServiceVCL)
+		if !ok {
+			return fmt.Errorf("unable to convert %T into the expected model type", state)
+		}
+		fmt.Printf("Update called with stateData: %+v\n", stateData)
+	}
+
+	// IMPORTANT: This function should reset the Added/Modified/Deleted fields.
+
 	return nil
 }
 
 // HasChanges indicates if the nested resource contains configuration changes.
-func (r *DomainResource) HasChanges(serviceData models.Service) bool {
-	fmt.Printf("%+v\n", "Domain HasChanges called")
-	return true
+func (r *DomainResource) HasChanges(resourceData interfaces.ResourceData) (bool, error) {
+	switch resourceData.GetType() {
+	case enums.Compute:
+	// ...
+	case enums.VCL:
+		plan := resourceData.GetPlan()
+		planData, ok := plan.(*models.ServiceVCL)
+		if !ok {
+			return false, fmt.Errorf("unable to convert %T into the expected model type", plan)
+		}
+
+		state := resourceData.GetState()
+		stateData, ok := state.(*models.ServiceVCL)
+		if !ok {
+			return false, fmt.Errorf("unable to convert %T into the expected model type", state)
+		}
+
+		changes, added, modified, deleted := hasChanges(planData.Domains, stateData.Domains)
+		fmt.Printf("added: %+v\n", added)
+		fmt.Printf("modified: %+v\n", modified)
+		fmt.Printf("deleted: %+v\n", deleted)
+
+		return changes, nil
+	}
+
+	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.GetType())
+}
+
+// TODO: This might need to be a generic function because of return types.
+func hasChanges(plan, state []models.Domain) (shouldClone bool, added, deleted, modified []models.Domain) {
+	return false, nil, nil, nil
 }
 
 // FIXME: We need an abstraction like SetDiff from the original provider.
@@ -314,7 +342,7 @@ func create(
 	ctx context.Context,
 	domain *models.Domain,
 	api helpers.API,
-	service models.Service,
+	service interfaces.ResourceData,
 	resp *resource.CreateResponse,
 ) error {
 	commonError := errors.New("failed to create domain resource")
@@ -364,7 +392,7 @@ func read(
 	ctx context.Context,
 	domains []models.Domain,
 	api helpers.API,
-	service models.Service,
+	service interfaces.ResourceData,
 	resp *resource.ReadResponse,
 ) ([]models.Domain, error) {
 	clientDomainReq := api.Client.DomainAPI.ListDomains(
