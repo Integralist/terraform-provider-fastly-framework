@@ -281,25 +281,16 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	serviceVersion := int32(plan.Version.ValueInt64())
 
 	if resourcesChanged > 0 {
-		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, serviceID, serviceVersion)
-		clientResp, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly VersionAPI.CloneServiceVersion error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
-			return
-		}
-		plan.Version = types.Int64Value(int64(clientResp.GetNumber()))
-
-		// TODO: Figure out what this API does and why we call it?
-		clientUpdateServiceVersionReq := r.client.VersionAPI.UpdateServiceVersion(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
-		clientUpdateServiceVersionResp, httpResp, err := clientUpdateServiceVersionReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly VersionAPI.UpdateServiceVersion error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
-			return
+		api := helpers.API{
+			Client:    r.client,
+			ClientCtx: r.clientCtx,
 		}
 
-		serviceVersion = clientUpdateServiceVersionResp.GetNumber()
+		// IMPORTANT: We're shadowing the parent scope's serviceVersion variable.
+		serviceVersion, err = cloneService(ctx, api, serviceID, serviceVersion, plan, resp)
+		if err != nil {
+			return
+		}
 	}
 
 	for _, nestedResource := range r.resources {
@@ -538,4 +529,33 @@ func determineChanges(
 	}
 
 	return resourcesChanged, nil
+}
+
+func cloneService(
+	ctx context.Context,
+	api helpers.API,
+	serviceID string,
+	serviceVersion int32,
+	plan *models.ServiceVCL,
+	resp *resource.UpdateResponse,
+) (version int32, err error) {
+	clientReq := api.Client.VersionAPI.CloneServiceVersion(api.ClientCtx, serviceID, serviceVersion)
+	clientResp, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly VersionAPI.CloneServiceVersion error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
+		return 0, err
+	}
+	plan.Version = types.Int64Value(int64(clientResp.GetNumber()))
+
+	// TODO: Figure out what this API does and why we call it?
+	clientUpdateServiceVersionReq := api.Client.VersionAPI.UpdateServiceVersion(api.ClientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+	clientUpdateServiceVersionResp, httpResp, err := clientUpdateServiceVersionReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly VersionAPI.UpdateServiceVersion error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
+		return 0, err
+	}
+
+	return clientUpdateServiceVersionResp.GetNumber(), nil
 }
