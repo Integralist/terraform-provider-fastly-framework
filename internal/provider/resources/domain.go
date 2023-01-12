@@ -209,8 +209,6 @@ func (r *DomainResource) Update(
 		}
 	}
 
-	return nil
-
 	r.Added = nil
 	r.Deleted = nil
 	r.Modified = nil
@@ -252,8 +250,15 @@ func (r *DomainResource) InspectChanges(resourceData interfaces.ResourceData) (b
 	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.GetType())
 }
 
+// HasChanges indicates if the nested resource contains configuration changes.
+func (r *DomainResource) HasChanges() bool {
+	return r.Changed
+}
+
 // TODO: This might need to be a generic function because of return types.
 // FIXME: How can we make this reusable across different nested resource types?
+// Original provider converted to maps for a SetDiff comparison.
+// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go#L20
 // IMPORTANT: There is no HasChanges built into the new framework!
 // https://github.com/hashicorp/terraform-plugin-framework/issues/526
 //
@@ -318,11 +323,6 @@ func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, 
 	}
 
 	return changed, added, deleted, modified
-}
-
-// HasChanges indicates if the nested resource contains configuration changes.
-func (r *DomainResource) HasChanges() bool {
-	return r.Changed
 }
 
 // create is the common behaviour for creating this resource.
