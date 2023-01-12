@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -121,43 +122,17 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	clientReq := r.client.ServiceAPI.CreateService(r.clientCtx)
-	clientReq.Comment(plan.Comment.ValueString())
-	clientReq.Name(plan.Name.ValueString())
-	clientReq.ResourceType("vcl")
-
-	clientResp, httpResp, err := clientReq.Execute()
-	if err != nil {
-		tflog.Trace(ctx, "Fastly ServiceAPI.CreateService error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create service, got error: %s", err))
-		return
-	}
-	if httpResp.StatusCode != http.StatusOK {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-		return
+	api := helpers.API{
+		Client:    r.client,
+		ClientCtx: r.clientCtx,
 	}
 
-	id, ok := clientResp.GetIDOk()
-	if !ok {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
+	// NOTE: The function mutates `plan`
+	if err := createService(ctx, api, plan, resp); err != nil {
 		return
 	}
-	plan.ID = types.StringValue(*id)
-
-	versions, ok := clientResp.GetVersionsOk()
-	if !ok {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", "No Service versions returned")
-		return
-	}
-	version := versions[0].GetNumber()
-	plan.Version = types.Int64Value(int64(version))
-
-	if plan.Activate.ValueBool() {
-		plan.LastActive = plan.Version
-	}
+	serviceID := plan.ID.ValueString()
+	serviceVersion := int32(plan.Version.ValueInt64())
 
 	// TODO: Ensure API errors are managed accordingly.
 	// https://github.com/fastly/terraform-provider-fastly/issues/631
@@ -165,14 +140,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	// The question is whether we want to fix this or not.
 
 	for _, nestedResource := range r.resources {
-		api := helpers.API{
-			Client:    r.client,
-			ClientCtx: r.clientCtx,
-		}
 		serviceData := data.Resource{
 			Type:           enums.VCL,
-			ServiceID:      *id,
-			ServiceVersion: version,
+			ServiceID:      serviceID,
+			ServiceVersion: serviceVersion,
 			State:          plan,
 		}
 		if err := nestedResource.Create(ctx, req, resp, api, &serviceData); err != nil {
@@ -182,7 +153,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 
 	if plan.Activate.ValueBool() {
 		// FIXME: Need to check for changes + service already active.
-		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, *id, int32(version))
+		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
@@ -508,4 +479,51 @@ func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.Confi
 			path.MatchRoot("reuse"),
 		),
 	}
+}
+
+func createService(
+	ctx context.Context,
+	api helpers.API,
+	plan *models.ServiceVCL,
+	resp *resource.CreateResponse,
+) error {
+	clientReq := api.Client.ServiceAPI.CreateService(api.ClientCtx)
+	clientReq.Comment(plan.Comment.ValueString())
+	clientReq.Name(plan.Name.ValueString())
+	clientReq.ResourceType("vcl")
+
+	clientResp, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly ServiceAPI.CreateService error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create service, got error: %s", err))
+		return err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return fmt.Errorf("failed to create service: %s", httpResp.Status)
+	}
+
+	id, ok := clientResp.GetIDOk()
+	if !ok {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
+		return errors.New("failed to create service: no Service ID returned")
+	}
+	plan.ID = types.StringValue(*id)
+
+	versions, ok := clientResp.GetVersionsOk()
+	if !ok {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", "No Service versions returned")
+		return errors.New("failed to create service: no Service versions returned")
+	}
+	version := versions[0].GetNumber()
+	plan.Version = types.Int64Value(int64(version))
+
+	if plan.Activate.ValueBool() {
+		plan.LastActive = plan.Version
+	}
+
+	return nil
 }
