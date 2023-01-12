@@ -4,14 +4,14 @@ page_title: "fastly_service_vcl Resource - terraform-provider-fastly-framework"
 subcategory: ""
 description: |-
   Provides a Fastly Service, representing the configuration for a website, app, API, or anything else to be served through Fastly. A Service encompasses Domains and Backends.
-  The Service resource requires a domain name that is correctly set up to direct traffic to the Fastly service. See Fastly's guide on Adding CNAME Records https://docs.fastly.com/en/guides/adding-cname-records on their documentation site for guidance.
+  The Service resource requires a domain name configured to direct traffic to the Fastly service. See Fastly's guide on Adding CNAME Records https://docs.fastly.com/en/guides/adding-cname-records on their documentation site for guidance.
 ---
 
 # fastly_service_vcl (Resource)
 
 Provides a Fastly Service, representing the configuration for a website, app, API, or anything else to be served through Fastly. A Service encompasses Domains and Backends.
 
-The Service resource requires a domain name that is correctly set up to direct traffic to the Fastly service. See Fastly's guide on [Adding CNAME Records](https://docs.fastly.com/en/guides/adding-cname-records) on their documentation site for guidance.
+The Service resource requires a domain name configured to direct traffic to the Fastly service. See Fastly's guide on [Adding CNAME Records](https://docs.fastly.com/en/guides/adding-cname-records) on their documentation site for guidance.
 
 
 
@@ -20,15 +20,19 @@ The Service resource requires a domain name that is correctly set up to direct t
 
 ### Required
 
+- `domains` (Attributes Set) (see [below for nested schema](#nestedatt--domains))
 - `name` (String) The unique name for the service to create
 
 ### Optional
 
 - `activate` (Boolean) Conditionally prevents the Service from being activated. The apply step will continue to create a new draft version but will not activate it if this is set to `false`. Default `true`
 - `comment` (String) Description field for the service. Default `Managed by Terraform`
-- `domain` (Block Set) (see [below for nested schema](#nestedblock--domain))
+- `default_host` (String) The default hostname
+- `default_ttl` (Number) The default Time-to-live (TTL) for requests
 - `force` (Boolean) Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`
 - `reuse` (Boolean) Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`
+- `stale_if_error` (Boolean) Enables serving a stale object if there is an error
+- `stale_if_error_ttl` (Number) The default time-to-live (TTL) for serving the stale object for the version
 
 ### Read-Only
 
@@ -36,8 +40,8 @@ The Service resource requires a domain name that is correctly set up to direct t
 - `last_active` (Number) The last 'active' service version (typically in-sync with `version` but not if `activate` is `false`)
 - `version` (Number) The latest version that the provider will clone from (typically in-sync with `last_active` but not if `activate` is `false`)
 
-<a id="nestedblock--domain"></a>
-### Nested Schema for `domain`
+<a id="nestedatt--domains"></a>
+### Nested Schema for `domains`
 
 Required:
 
@@ -46,5 +50,9 @@ Required:
 Optional:
 
 - `comment` (String) An optional comment about the domain
+
+Read-Only:
+
+- `id` (String) Unique identifier used by the provider to determine changes within a nested set type
 
 
