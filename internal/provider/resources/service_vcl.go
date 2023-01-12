@@ -298,8 +298,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// NOTE: Name and Comment are 'versionless' attributes.
 	// Other nested attributes will need a new service version.
 
-	// var hasChanges bool
-	hasChanges, added, deleted, modified := DomainChanges(plan, state)
+	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
+	// Because we range over multiple nested attributes, if we had used a boolean
+	// then we might find the last item in the loop had no resourcesChanged and we would
+	// incorrectly set the boolean to false when prior items DID have resourcesChanged.
+	var resourcesChanged int
+
 	for _, nestedResource := range r.resources {
 		serviceData := data.Resource{
 			Type:  enums.VCL,
@@ -309,21 +313,25 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 		var err error
 
-		// NOTE: HasChanges mutates the nested resource.
+		// NOTE: InspectChanges mutates the nested resource.
 		// The nestedResource struct has Added, Deleted, Modified fields.
-		hasChanges, err = nestedResource.HasChanges(&serviceData)
+		// These are used by the nestedResource.Update method (called later).
+		changed, err := nestedResource.InspectChanges(&serviceData)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
-			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("HasChanges failed to detect changes, got error: %s", err))
+			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
 			return
+		}
+
+		if changed {
+			resourcesChanged++
 		}
 	}
 
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
 
-	var serviceVersionToActivate int32
-	if hasChanges {
+	if resourcesChanged > 0 {
 		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -342,25 +350,24 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			return
 		}
 
-		serviceVersionToActivate = clientUpdateServiceVersionResp.GetNumber()
+		serviceVersion = clientUpdateServiceVersionResp.GetNumber()
 	}
 
-	if err := DomainUpdate(ctx, r, added, deleted, modified, plan, resp); err != nil {
-		return
-	}
 	for _, nestedResource := range r.resources {
-		api := helpers.API{
-			Client:    r.client,
-			ClientCtx: r.clientCtx,
-		}
-		serviceData := data.Resource{
-			Type:           enums.VCL,
-			ServiceID:      serviceID,
-			ServiceVersion: serviceVersion,
-			State:          plan,
-		}
-		if err := nestedResource.Update(ctx, req, resp, api, &serviceData); err != nil {
-			return
+		if nestedResource.HasChanges() {
+			api := helpers.API{
+				Client:    r.client,
+				ClientCtx: r.clientCtx,
+			}
+			serviceData := data.Resource{
+				Type:           enums.VCL,
+				ServiceID:      serviceID,
+				ServiceVersion: serviceVersion,
+				State:          plan,
+			}
+			if err := nestedResource.Update(ctx, req, resp, api, &serviceData); err != nil {
+				return
+			}
 		}
 	}
 
@@ -384,8 +391,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	if hasChanges {
-		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersionToActivate)
+	if resourcesChanged > 0 {
+		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
@@ -394,11 +401,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	tflog.Debug(ctx, "Domains", map[string]any{
-		"added":    added,
-		"deleted":  deleted,
-		"modified": modified,
-	})
 	tflog.Trace(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
 

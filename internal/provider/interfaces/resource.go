@@ -57,8 +57,10 @@ type Resource interface {
 		api helpers.API,
 		resourceData ResourceData,
 	) error
-	// HasChanges indicates if the nested resource contains configuration changes.
-	HasChanges(resourceData ResourceData) (bool, error)
 	// GetType returns the nested resource type (e.g. enums.Domain)
 	GetType() enums.NestedType
+	// HasChanges indicates if the nested resource contains configuration changes.
+	HasChanges() bool
+	// InspectChanges checks for configuration changes and persists to data model.
+	InspectChanges(resourceData ResourceData) (bool, error)
 }

@@ -33,6 +33,8 @@ type DomainResource struct {
 	Deleted []models.Domain
 	// Modified represents any modified resources.
 	Modified []models.Domain
+	// Changed indicates if the resource has changes.
+	Changed bool
 }
 
 // GetType returns the nested resource type (e.g. enums.Domain)
@@ -116,203 +118,6 @@ func (r *DomainResource) Update(
 	api helpers.API,
 	resourceData interfaces.ResourceData,
 ) error {
-	state := resourceData.GetState()
-
-	switch resourceData.GetType() {
-	case enums.Compute:
-	// ...
-	case enums.VCL:
-		stateData, ok := state.(*models.ServiceVCL)
-		if !ok {
-			return fmt.Errorf("unable to convert %T into the expected model type", state)
-		}
-		fmt.Printf("Update called with stateData: %+v\n", stateData)
-		fmt.Printf("added: %+v\n", r.Added)
-		fmt.Printf("deleted: %+v\n", r.Deleted)
-		fmt.Printf("modified: %+v\n", r.Modified)
-	}
-
-	// IMPORTANT: This function should "RESET" the Added/Modified/Deleted fields!
-
-	return nil
-}
-
-// HasChanges indicates if the nested resource contains configuration changes.
-func (r *DomainResource) HasChanges(resourceData interfaces.ResourceData) (bool, error) {
-	plan := resourceData.GetPlan()
-	state := resourceData.GetState()
-
-	switch resourceData.GetType() {
-	case enums.Compute:
-	// ...
-	case enums.VCL:
-		planData, ok := plan.(*models.ServiceVCL)
-		if !ok {
-			return false, fmt.Errorf("unable to convert %T into the expected model type", plan)
-		}
-		stateData, ok := state.(*models.ServiceVCL)
-		if !ok {
-			return false, fmt.Errorf("unable to convert %T into the expected model type", state)
-		}
-
-		changes, added, deleted, modified := hasChanges(planData.Domains, stateData.Domains)
-
-		r.Added = added
-		r.Deleted = deleted
-		r.Modified = modified
-
-		return changes, nil
-	}
-
-	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.GetType())
-}
-
-// TODO: This might need to be a generic function because of return types.
-// FIXME: How can we make this reusable across different nested resource types?
-// IMPORTANT: There is no HasChanges built into the new framework!
-// https://github.com/hashicorp/terraform-plugin-framework/issues/526
-//
-// If plan 'key' exists in prior state, then it's modified.
-// Otherwise resource is new.
-// If state 'key' doesn't exist in plan, then it's deleted.
-//
-// EXAMPLE:
-// If domain hashed is found in state, then it already exists and might be modified.
-// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
-// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
-func hasChanges(plan, state []models.Domain) (hasChanges bool, added, deleted, modified []models.Domain) {
-	// NOTE: We have to manually track each resource in a nested set attribute.
-	// For domains this means computing an ID for each domain, then calculating
-	// whether a domain has been added, deleted or modified. If any of those
-	// conditions are met, then we must clone the current service version.
-	for i := range plan {
-		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &plan[i]
-
-		// ID is a computed value so we need to regenerate it from the domain name.
-		if planDomain.ID.IsUnknown() {
-			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
-			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		var foundDomain bool
-		for _, stateDomain := range state {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				// NOTE: It's not possible for the domain's Name field to not match.
-				// This is because we first check the ID field matches, and that is
-				// based on a hash of the domain name. Because of this we don't bother
-				// checking if planDomain.Name and stateDomain.Name are not equal.
-				if !planDomain.Comment.Equal(stateDomain.Comment) {
-					hasChanges = true
-					modified = append(modified, *planDomain)
-				}
-				break
-			}
-		}
-
-		if !foundDomain {
-			hasChanges = true
-			added = append(added, *planDomain)
-		}
-	}
-
-	for _, stateDomain := range state {
-		var foundDomain bool
-		for _, planDomain := range plan {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				break
-			}
-		}
-
-		if !foundDomain {
-			hasChanges = true
-			deleted = append(deleted, stateDomain)
-		}
-	}
-
-	return hasChanges, added, deleted, modified
-}
-
-// FIXME: We need an abstraction like SetDiff from the original provider.
-// We compare the plan set to the state set and determine what changed.
-// e.g. 'added', 'modified', 'deleted' and calls relevant API.
-// Needs a 'key' for each resource (sometimes 'name' but has to be unique).
-// Unless we switch to MapNestedAttribute which provides a key by design.
-//
-// If plan 'key' exists in prior state, then it's modified.
-// Otherwise resource is new.
-// If state 'key' doesn't exist in plan, then it's deleted.
-//
-// If domain hashed is found in state, then it already exists and might be modified.
-// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
-// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
-func DomainChanges(
-	plan *models.ServiceVCL,
-	state *models.ServiceVCL,
-) (shouldClone bool, added, deleted, modified []models.Domain) {
-	// NOTE: We have to manually track each resource in a nested set attribute.
-	// For domains this means computing an ID for each domain, then calculating
-	// whether a domain has been added, deleted or modified. If any of those
-	// conditions are met, then we must clone the current service version.
-	for i := range plan.Domains {
-		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &plan.Domains[i]
-
-		// ID is a computed value so we need to regenerate it from the domain name.
-		if planDomain.ID.IsUnknown() {
-			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
-			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		var foundDomain bool
-		for _, stateDomain := range state.Domains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				// NOTE: It's not possible for the domain's Name field to not match.
-				// This is because we first check the ID field matches, and that is
-				// based on a hash of the domain name. Because of this we don't bother
-				// checking if planDomain.Name and stateDomain.Name are not equal.
-				if !planDomain.Comment.Equal(stateDomain.Comment) {
-					shouldClone = true
-					modified = append(modified, *planDomain)
-				}
-				break
-			}
-		}
-
-		if !foundDomain {
-			shouldClone = true
-			added = append(added, *planDomain)
-		}
-	}
-
-	for _, stateDomain := range state.Domains {
-		var foundDomain bool
-		for _, planDomain := range plan.Domains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				break
-			}
-		}
-
-		if !foundDomain {
-			shouldClone = true
-			deleted = append(deleted, stateDomain)
-		}
-	}
-
-	return shouldClone, added, deleted, modified
-}
-
-func DomainUpdate(
-	ctx context.Context,
-	r *ServiceVCLResource,
-	added, deleted, modified []models.Domain,
-	plan *models.ServiceVCL,
-	resp *resource.UpdateResponse,
-) error {
 	// IMPORTANT: We need to delete, then add, then update.
 	// Some Fastly resources (like snippets) must have unique names.
 	// If a user tries to switch from dynamicsnippet to snippet, and we don't
@@ -325,12 +130,12 @@ func DomainUpdate(
 	// We should make them a single type (as the API is one endpoint).
 	// Then we can expose a `dynamic` boolean attribute to control the type.
 
-	for _, domain := range deleted {
+	for _, domain := range r.Deleted {
 		// TODO: Check if the version we have is correct.
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.DeleteDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), domain.Name.ValueString())
+		clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
 
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -345,14 +150,14 @@ func DomainUpdate(
 		}
 	}
 
-	for _, domain := range added {
+	for _, domain := range r.Added {
 		// TODO: Abstract the following API call into a function as it's called multiple times.
 
 		// TODO: Check if the version we have is correct.
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.CreateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
+		clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion())
 
 		if !domain.Comment.IsNull() {
 			clientReq.Comment(domain.Comment.ValueString())
@@ -375,12 +180,12 @@ func DomainUpdate(
 		}
 	}
 
-	for _, domain := range modified {
+	for _, domain := range r.Modified {
 		// TODO: Check if the version we have is correct.
 		// e.g. should it be latest 'active' or just latest version?
 		// It should depend on `activate` field but also whether the service pre-exists.
 		// The service might exist if it was imported or a secondary config run.
-		clientReq := r.client.DomainAPI.UpdateDomain(r.clientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()), domain.Name.ValueString())
+		clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
 
 		if !domain.Comment.IsNull() {
 			clientReq.Comment(domain.Comment.ValueString())
@@ -405,6 +210,119 @@ func DomainUpdate(
 	}
 
 	return nil
+
+	r.Added = nil
+	r.Deleted = nil
+	r.Modified = nil
+	r.Changed = false
+
+	return nil
+}
+
+// InspectChanges checks for configuration changes and persists to data model.
+func (r *DomainResource) InspectChanges(resourceData interfaces.ResourceData) (bool, error) {
+	plan := resourceData.GetPlan()
+	state := resourceData.GetState()
+
+	switch resourceData.GetType() {
+	case enums.Compute:
+	// ...
+	case enums.VCL:
+		planData, ok := plan.(*models.ServiceVCL)
+		if !ok {
+			return false, fmt.Errorf("unable to convert %T into the expected model type", plan)
+		}
+		stateData, ok := state.(*models.ServiceVCL)
+		if !ok {
+			return false, fmt.Errorf("unable to convert %T into the expected model type", state)
+		}
+
+		r.Changed, r.Added, r.Deleted, r.Modified = inspectChanges(planData.Domains, stateData.Domains)
+
+		tflog.Debug(context.Background(), "Domains", map[string]any{
+			"added":    r.Added,
+			"deleted":  r.Deleted,
+			"modified": r.Modified,
+			"changed":  r.Changed,
+		})
+
+		return r.Changed, nil
+	}
+
+	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.GetType())
+}
+
+// TODO: This might need to be a generic function because of return types.
+// FIXME: How can we make this reusable across different nested resource types?
+// IMPORTANT: There is no HasChanges built into the new framework!
+// https://github.com/hashicorp/terraform-plugin-framework/issues/526
+//
+// If plan 'key' exists in prior state, then it's modified.
+// Otherwise resource is new.
+// If state 'key' doesn't exist in plan, then it's deleted.
+//
+// EXAMPLE:
+// If domain hashed is found in state, then it already exists and might be modified.
+// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
+// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
+func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
+	// NOTE: We have to manually track each resource in a nested set attribute.
+	// For domains this means computing an ID for each domain, then calculating
+	// whether a domain has been added, deleted or modified. If any of those
+	// conditions are met, then we must clone the current service version.
+	for i := range plan {
+		// NOTE: We need a pointer to the resource struct so we can set an ID.
+		planDomain := &plan[i]
+
+		// ID is a computed value so we need to regenerate it from the domain name.
+		if planDomain.ID.IsUnknown() {
+			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
+			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
+		}
+
+		var foundDomain bool
+		for _, stateDomain := range state {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				// NOTE: It's not possible for the domain's Name field to not match.
+				// This is because we first check the ID field matches, and that is
+				// based on a hash of the domain name. Because of this we don't bother
+				// checking if planDomain.Name and stateDomain.Name are not equal.
+				if !planDomain.Comment.Equal(stateDomain.Comment) {
+					changed = true
+					modified = append(modified, *planDomain)
+				}
+				break
+			}
+		}
+
+		if !foundDomain {
+			changed = true
+			added = append(added, *planDomain)
+		}
+	}
+
+	for _, stateDomain := range state {
+		var foundDomain bool
+		for _, planDomain := range plan {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				break
+			}
+		}
+
+		if !foundDomain {
+			changed = true
+			deleted = append(deleted, stateDomain)
+		}
+	}
+
+	return changed, added, deleted, modified
+}
+
+// HasChanges indicates if the nested resource contains configuration changes.
+func (r *DomainResource) HasChanges() bool {
+	return r.Changed
 }
 
 // create is the common behaviour for creating this resource.
