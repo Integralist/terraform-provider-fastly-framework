@@ -58,6 +58,11 @@ type ServiceVCLResource struct {
 	// clientCtx contains the user's API token.
 	clientCtx context.Context
 	// resources is a list of nested resources.
+	//
+	// NOTE: Terraform doesn't have a concept of nested resources.
+	// We're using this terminology because it makes more sense for Fastly.
+	// As our 'nested resources' are actually just nested 'attributes'.
+	// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#nested-attributes
 	resources []interfaces.Resource
 }
 
@@ -249,14 +254,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Read Terraform state data into the model so it can be compared against plan
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -385,7 +388,6 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -433,7 +435,6 @@ func (r *ServiceVCLResource) Configure(_ context.Context, req resource.Configure
 	}
 
 	client, ok := req.ProviderData.(*fastly.APIClient)
-
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
