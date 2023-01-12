@@ -280,12 +280,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
 
-	if resourcesChanged > 0 {
-		api := helpers.API{
-			Client:    r.client,
-			ClientCtx: r.clientCtx,
-		}
+	api := helpers.API{
+		Client:    r.client,
+		ClientCtx: r.clientCtx,
+	}
 
+	if resourcesChanged > 0 {
 		// IMPORTANT: We're shadowing the parent scope's serviceVersion variable.
 		serviceVersion, err = cloneService(ctx, api, serviceID, serviceVersion, plan, resp)
 		if err != nil {
@@ -295,10 +295,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	for _, nestedResource := range r.resources {
 		if nestedResource.HasChanges() {
-			api := helpers.API{
-				Client:    r.client,
-				ClientCtx: r.clientCtx,
-			}
 			serviceData := data.Resource{
 				Type:           enums.VCL,
 				ServiceID:      serviceID,
@@ -311,20 +307,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
-	// When cloning (see above) we need to call UpdateServiceVersion.
-	clientReq := r.client.ServiceAPI.UpdateService(r.clientCtx, plan.ID.ValueString())
-	if !plan.Comment.Equal(state.Comment) {
-		clientReq.Comment(plan.Comment.ValueString())
-	}
-	if !plan.Name.Equal(state.Name) {
-		clientReq.Name(plan.Name.ValueString())
-	}
-
-	_, httpResp, err := clientReq.Execute()
+	err = updateService(ctx, api, plan, state, resp)
 	if err != nil {
-		tflog.Trace(ctx, "Fastly ServiceAPI.UpdateService error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
 		return
 	}
 
@@ -558,4 +542,32 @@ func cloneService(
 	}
 
 	return clientUpdateServiceVersionResp.GetNumber(), nil
+}
+
+func updateService(
+	ctx context.Context,
+	api helpers.API,
+	plan *models.ServiceVCL,
+	state *models.ServiceVCL,
+	resp *resource.UpdateResponse,
+) error {
+	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
+	// When cloning (see above) we need to call UpdateServiceVersion.
+
+	clientReq := api.Client.ServiceAPI.UpdateService(api.ClientCtx, plan.ID.ValueString())
+	if !plan.Comment.Equal(state.Comment) {
+		clientReq.Comment(plan.Comment.ValueString())
+	}
+	if !plan.Name.Equal(state.Name) {
+		clientReq.Name(plan.Name.ValueString())
+	}
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly ServiceAPI.UpdateService error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
+		return err
+	}
+
+	return nil
 }
