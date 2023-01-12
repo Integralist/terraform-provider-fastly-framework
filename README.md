@@ -1,5 +1,7 @@
 # Fastly Terraform Provider
 
+> 🚨 This provider is WIP (Work in Progress).
+
 The Fastly Terraform Provider interacts with most facets of the [Fastly API](https://developer.fastly.com/reference/api) and uses the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework).
 
 ## Requirements

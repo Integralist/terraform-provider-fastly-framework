@@ -2,7 +2,7 @@
 // This is because of an import cycle issue I couldn't workaround.
 //
 // The provider package exposes a New() function which is called by
-// ../../main.go) so it can return an instance of the Fastly Terraform provider.
+// ../../main.go so it can return an instance of the Fastly Terraform provider.
 // The New() function is also required by ./provider_test.go, which defines a
 // couple of test helpers.
 //
