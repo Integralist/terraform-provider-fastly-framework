@@ -69,7 +69,7 @@ func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := schemas.Service()
 
-	// TODO: Implement Service settings logic.
+	// FIXME: Implement Service settings logic.
 	// https://developer.fastly.com/reference/api/vcl-services/settings/
 	attrs["default_ttl"] = schema.Int64Attribute{
 		MarkdownDescription: "The default Time-to-live (TTL) for requests",

@@ -256,20 +256,13 @@ func (r *DomainResource) HasChanges() bool {
 }
 
 // TODO: This might need to be a generic function because of return types.
+//
 // FIXME: How can we make this reusable across different nested resource types?
 // Original provider converted to maps for a SetDiff comparison.
 // https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go#L20
+//
 // IMPORTANT: There is no HasChanges built into the new framework!
 // https://github.com/hashicorp/terraform-plugin-framework/issues/526
-//
-// If plan 'key' exists in prior state, then it's modified.
-// Otherwise resource is new.
-// If state 'key' doesn't exist in plan, then it's deleted.
-//
-// EXAMPLE:
-// If domain hashed is found in state, then it already exists and might be modified.
-// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
-// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
 func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
 	// NOTE: We have to manually track each resource in a nested set attribute.
 	// For domains this means computing an ID for each domain, then calculating
@@ -333,7 +326,7 @@ func create(
 	service interfaces.ResourceData,
 	resp *resource.CreateResponse,
 ) error {
-	commonError := errors.New("failed to create domain resource")
+	createErr := errors.New("failed to create domain resource")
 
 	if domain.ID.IsUnknown() {
 		// NOTE: We create a consistent hash of the domain name for the ID.
@@ -365,12 +358,12 @@ func create(
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
-		return commonError
+		return createErr
 	}
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-		return commonError
+		return createErr
 	}
 
 	return nil
@@ -383,13 +376,13 @@ func read(
 	service interfaces.ResourceData,
 	resp *resource.ReadResponse,
 ) ([]models.Domain, error) {
-	clientDomainReq := api.Client.DomainAPI.ListDomains(
+	clientReq := api.Client.DomainAPI.ListDomains(
 		api.ClientCtx,
 		service.GetServiceID(),
 		service.GetServiceVersion(),
 	)
 
-	clientDomainResp, httpResp, err := clientDomainReq.Execute()
+	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.ListDomains error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list domains, got error: %s", err))
@@ -403,9 +396,8 @@ func read(
 
 	var remoteDomains []models.Domain
 
-	// TODO: Rename domainData to domain once moved to separate package.
-	for _, domainData := range clientDomainResp {
-		domainName := domainData.GetName()
+	for _, domain := range clientResp {
+		domainName := domain.GetName()
 		digest := sha256.Sum256([]byte(domainName))
 
 		sd := models.Domain{
@@ -427,7 +419,7 @@ func read(
 		// client could handle whether the value returned was null. So I've left the
 		// conditional logic here but have added to the else statement additional
 		// logic for working around the issue with the Fastly API response.
-		if v, ok := domainData.GetCommentOk(); ok {
+		if v, ok := domain.GetCommentOk(); ok {
 			// Set comment to whatever is returned by the API (could be an empty
 			// string and that might be because the user set that explicitly or it
 			// could be because it was never set and the API is just returning an
@@ -470,7 +462,7 @@ func read(
 			sd.Comment = types.StringNull()
 		}
 
-		if v, ok := domainData.GetNameOk(); !ok {
+		if v, ok := domain.GetNameOk(); !ok {
 			sd.Name = types.StringNull()
 		} else {
 			sd.Name = types.StringValue(*v)
