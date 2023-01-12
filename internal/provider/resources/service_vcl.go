@@ -269,37 +269,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	plan.Version = state.Version
 	plan.LastActive = state.LastActive
 
-	// NOTE: Name and Comment are 'versionless' attributes.
-	// Other nested attributes will need a new service version.
+	// NOTE: The service attributes (Name, Comment) are 'versionless'.
+	// Other nested attributes will require a new service version.
 
-	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
-	// Because we range over multiple nested attributes, if we had used a boolean
-	// then we might find the last item in the loop had no resourcesChanged and we would
-	// incorrectly set the boolean to false when prior items DID have resourcesChanged.
-	var resourcesChanged int
-
-	for _, nestedResource := range r.resources {
-		serviceData := data.Resource{
-			Type:  enums.VCL,
-			State: state,
-			Plan:  plan,
-		}
-
-		var err error
-
-		// NOTE: InspectChanges mutates the nested resource.
-		// The nestedResource struct has Added, Deleted, Modified fields.
-		// These are used by the nestedResource.Update method (called later).
-		changed, err := nestedResource.InspectChanges(&serviceData)
-		if err != nil {
-			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
-			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
-			return
-		}
-
-		if changed {
-			resourcesChanged++
-		}
+	resourcesChanged, err := determineChanges(ctx, r.resources, state, plan, resp)
+	if err != nil {
+		return
 	}
 
 	serviceID := plan.ID.ValueString()
@@ -527,4 +502,40 @@ func createService(
 	}
 
 	return nil
+}
+
+func determineChanges(
+	ctx context.Context,
+	nestedResources []interfaces.Resource,
+	state, plan *models.ServiceVCL,
+	resp *resource.UpdateResponse,
+) (resourcesChanged int, err error) {
+	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
+	// Because we range over multiple nested attributes, if we had used a boolean
+	// then we might find the last item in the loop had no resourcesChanged and we would
+	// incorrectly set the boolean to false when prior items DID have resourcesChanged.
+
+	for _, nestedResource := range nestedResources {
+		serviceData := data.Resource{
+			Type:  enums.VCL,
+			State: state,
+			Plan:  plan,
+		}
+
+		// NOTE: InspectChanges mutates the nested resource.
+		// The nestedResource struct has Added, Deleted, Modified fields.
+		// These are used by the nestedResource.Update method (called later).
+		changed, err := nestedResource.InspectChanges(&serviceData)
+		if err != nil {
+			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
+			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
+			return 0, err
+		}
+
+		if changed {
+			resourcesChanged++
+		}
+	}
+
+	return resourcesChanged, nil
 }
