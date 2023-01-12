@@ -50,11 +50,12 @@ func (r *DomainResource) Create(
 	api helpers.API,
 	resourceData interfaces.ResourceData,
 ) error {
+	state := resourceData.GetState()
+
 	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		state := resourceData.GetState()
 		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
 			return fmt.Errorf("unable to convert %T into the expected model type", state)
@@ -83,11 +84,12 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	resourceData interfaces.ResourceData,
 ) error {
+	state := resourceData.GetState()
+
 	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		state := resourceData.GetState()
 		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
 			return fmt.Errorf("unable to convert %T into the expected model type", state)
@@ -114,45 +116,50 @@ func (r *DomainResource) Update(
 	api helpers.API,
 	resourceData interfaces.ResourceData,
 ) error {
+	state := resourceData.GetState()
+
 	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		state := resourceData.GetState()
 		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
 			return fmt.Errorf("unable to convert %T into the expected model type", state)
 		}
 		fmt.Printf("Update called with stateData: %+v\n", stateData)
+		fmt.Printf("added: %+v\n", r.Added)
+		fmt.Printf("deleted: %+v\n", r.Deleted)
+		fmt.Printf("modified: %+v\n", r.Modified)
 	}
 
-	// IMPORTANT: This function should reset the Added/Modified/Deleted fields.
+	// IMPORTANT: This function should "RESET" the Added/Modified/Deleted fields!
 
 	return nil
 }
 
 // HasChanges indicates if the nested resource contains configuration changes.
 func (r *DomainResource) HasChanges(resourceData interfaces.ResourceData) (bool, error) {
+	plan := resourceData.GetPlan()
+	state := resourceData.GetState()
+
 	switch resourceData.GetType() {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
-		plan := resourceData.GetPlan()
 		planData, ok := plan.(*models.ServiceVCL)
 		if !ok {
 			return false, fmt.Errorf("unable to convert %T into the expected model type", plan)
 		}
-
-		state := resourceData.GetState()
 		stateData, ok := state.(*models.ServiceVCL)
 		if !ok {
 			return false, fmt.Errorf("unable to convert %T into the expected model type", state)
 		}
 
-		changes, added, modified, deleted := hasChanges(planData.Domains, stateData.Domains)
-		fmt.Printf("added: %+v\n", added)
-		fmt.Printf("modified: %+v\n", modified)
-		fmt.Printf("deleted: %+v\n", deleted)
+		changes, added, deleted, modified := hasChanges(planData.Domains, stateData.Domains)
+
+		r.Added = added
+		r.Deleted = deleted
+		r.Modified = modified
 
 		return changes, nil
 	}
@@ -161,8 +168,71 @@ func (r *DomainResource) HasChanges(resourceData interfaces.ResourceData) (bool,
 }
 
 // TODO: This might need to be a generic function because of return types.
-func hasChanges(plan, state []models.Domain) (shouldClone bool, added, deleted, modified []models.Domain) {
-	return false, nil, nil, nil
+// FIXME: How can we make this reusable across different nested resource types?
+// IMPORTANT: There is no HasChanges built into the new framework!
+// https://github.com/hashicorp/terraform-plugin-framework/issues/526
+//
+// If plan 'key' exists in prior state, then it's modified.
+// Otherwise resource is new.
+// If state 'key' doesn't exist in plan, then it's deleted.
+//
+// EXAMPLE:
+// If domain hashed is found in state, then it already exists and might be modified.
+// If domain hashed is not found in state, then it is either new or an existing domain that was renamed.
+// We then separately loop the state and see if it exists in the plan (if it doesn't, then it's deleted)
+func hasChanges(plan, state []models.Domain) (hasChanges bool, added, deleted, modified []models.Domain) {
+	// NOTE: We have to manually track each resource in a nested set attribute.
+	// For domains this means computing an ID for each domain, then calculating
+	// whether a domain has been added, deleted or modified. If any of those
+	// conditions are met, then we must clone the current service version.
+	for i := range plan {
+		// NOTE: We need a pointer to the resource struct so we can set an ID.
+		planDomain := &plan[i]
+
+		// ID is a computed value so we need to regenerate it from the domain name.
+		if planDomain.ID.IsUnknown() {
+			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
+			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
+		}
+
+		var foundDomain bool
+		for _, stateDomain := range state {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				// NOTE: It's not possible for the domain's Name field to not match.
+				// This is because we first check the ID field matches, and that is
+				// based on a hash of the domain name. Because of this we don't bother
+				// checking if planDomain.Name and stateDomain.Name are not equal.
+				if !planDomain.Comment.Equal(stateDomain.Comment) {
+					hasChanges = true
+					modified = append(modified, *planDomain)
+				}
+				break
+			}
+		}
+
+		if !foundDomain {
+			hasChanges = true
+			added = append(added, *planDomain)
+		}
+	}
+
+	for _, stateDomain := range state {
+		var foundDomain bool
+		for _, planDomain := range plan {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				break
+			}
+		}
+
+		if !foundDomain {
+			hasChanges = true
+			deleted = append(deleted, stateDomain)
+		}
+	}
+
+	return hasChanges, added, deleted, modified
 }
 
 // FIXME: We need an abstraction like SetDiff from the original provider.

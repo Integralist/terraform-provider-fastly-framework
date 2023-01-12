@@ -298,7 +298,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// NOTE: Name and Comment are 'versionless' attributes.
 	// Other nested attributes will need a new service version.
 
-	shouldClone, added, deleted, modified := DomainChanges(plan, state)
+	// var hasChanges bool
+	hasChanges, added, deleted, modified := DomainChanges(plan, state)
 	for _, nestedResource := range r.resources {
 		serviceData := data.Resource{
 			Type:  enums.VCL,
@@ -306,21 +307,23 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			Plan:  plan,
 		}
 
-		// NOTE: HasChanges mutates the nested resource with added/deleted/modified.
-		hasChanges, err := nestedResource.HasChanges(&serviceData)
+		var err error
+
+		// NOTE: HasChanges mutates the nested resource.
+		// The nestedResource struct has Added, Deleted, Modified fields.
+		hasChanges, err = nestedResource.HasChanges(&serviceData)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
 			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("HasChanges failed to detect changes, got error: %s", err))
 			return
 		}
-		fmt.Printf("hasChanges: %+v\n", hasChanges)
 	}
 
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
 
 	var serviceVersionToActivate int32
-	if shouldClone {
+	if hasChanges {
 		clientReq := r.client.VersionAPI.CloneServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -381,7 +384,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	if shouldClone {
+	if hasChanges {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersionToActivate)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {

@@ -53,6 +53,10 @@ func TestAccResourceServiceVCL(t *testing.T) {
 
 	// Update the first domain's comment + second domain's name (force = true).
 	// We also change the order of the domains so the second is now first.
+	// This should result in:
+	//    - One domain being "added"    (tpff-2-updated).
+	//    - One domain being "modified" (tpff-1).
+	//    - One domain being "deleted"  (tpff-2).
 	configUpdate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       name = "%s"
@@ -68,7 +72,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
         },
       ]
     }
-    `, serviceName, true, domainName+"-updated", domainName+"-updated")
+    `, serviceName, true, domainName+"-updated", domainName)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
