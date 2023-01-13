@@ -19,7 +19,7 @@ type Resource interface {
 		req *resource.CreateRequest,
 		resp *resource.CreateResponse,
 		api helpers.API,
-		resourceData *data.Resource,
+		serviceData *data.Service,
 	) error
 	// Read is called when the provider must read resource values in order to update state.
 	// Planned state values should be read from the ReadRequest.
@@ -29,7 +29,7 @@ type Resource interface {
 		req *resource.ReadRequest,
 		resp *resource.ReadResponse,
 		api helpers.API,
-		resourceData *data.Resource,
+		serviceData *data.Service,
 	) error
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
@@ -45,7 +45,7 @@ type Resource interface {
 		req *resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
-		resourceData *data.Resource,
+		serviceData *data.Service,
 	) error
 	// GetType returns the nested resource type (e.g. enums.Domain)
 	GetType() enums.NestedType
@@ -57,6 +57,6 @@ type Resource interface {
 		req *resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
-		resourceData *data.Resource,
+		serviceData *data.Service,
 	) (bool, error)
 }

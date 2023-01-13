@@ -52,14 +52,14 @@ func (r *DomainResource) Create(
 	req *resource.CreateRequest,
 	resp *resource.CreateResponse,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 ) error {
 	var domains []models.Domain
 	req.Plan.GetAttribute(ctx, path.Root("domains"), &domains)
 
 	for i := range domains {
 		domain := &domains[i]
-		if err := create(ctx, domain, api, resourceData, resp); err != nil {
+		if err := create(ctx, domain, api, serviceData, resp); err != nil {
 			return err
 		}
 	}
@@ -77,12 +77,12 @@ func (r *DomainResource) Read(
 	req *resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 ) error {
 	var domains []models.Domain
 	req.State.GetAttribute(ctx, path.Root("domains"), &domains)
 
-	remoteDomains, err := read(ctx, domains, api, resourceData, resp)
+	remoteDomains, err := read(ctx, domains, api, serviceData, resp)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (r *DomainResource) Update(
 	_ *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 ) error {
 	// IMPORTANT: We need to delete, then add, then update.
 	// Some Fastly resources (like snippets) must have unique names.
@@ -115,19 +115,19 @@ func (r *DomainResource) Update(
 	// Then we can expose a `dynamic` boolean attribute to control the type.
 
 	for _, domain := range r.Deleted {
-		if err := updateDeleted(ctx, api, resourceData, domain, resp); err != nil {
+		if err := updateDeleted(ctx, api, serviceData, domain, resp); err != nil {
 			return err
 		}
 	}
 
 	for _, domain := range r.Added {
-		if err := updateAdded(ctx, api, resourceData, domain, resp); err != nil {
+		if err := updateAdded(ctx, api, serviceData, domain, resp); err != nil {
 			return err
 		}
 	}
 
 	for _, domain := range r.Modified {
-		if err := updateModified(ctx, api, resourceData, domain, resp); err != nil {
+		if err := updateModified(ctx, api, serviceData, domain, resp); err != nil {
 			return err
 		}
 	}
@@ -146,7 +146,7 @@ func (r *DomainResource) InspectChanges(
 	req *resource.UpdateRequest,
 	_ *resource.UpdateResponse,
 	_ helpers.API,
-	_ *data.Resource,
+	_ *data.Service,
 ) (bool, error) {
 	var planDomains []models.Domain
 	var stateDomains []models.Domain
@@ -179,7 +179,7 @@ func create(
 	ctx context.Context,
 	domain *models.Domain,
 	api helpers.API,
-	service *data.Resource,
+	service *data.Service,
 	resp *resource.CreateResponse,
 ) error {
 	createErr := errors.New("failed to create domain resource")
@@ -198,8 +198,8 @@ func create(
 	// The service might exist if it was imported or a secondary config run.
 	clientReq := api.Client.DomainAPI.CreateDomain(
 		api.ClientCtx,
-		service.ServiceID,
-		service.ServiceVersion,
+		service.ID,
+		service.Version,
 	)
 
 	if !domain.Comment.IsNull() {
@@ -229,13 +229,13 @@ func read(
 	ctx context.Context,
 	domains []models.Domain,
 	api helpers.API,
-	service *data.Resource,
+	service *data.Service,
 	resp *resource.ReadResponse,
 ) ([]models.Domain, error) {
 	clientReq := api.Client.DomainAPI.ListDomains(
 		api.ClientCtx,
-		service.ServiceID,
-		service.ServiceVersion,
+		service.ID,
+		service.Version,
 	)
 
 	clientResp, httpResp, err := clientReq.Execute()
@@ -333,11 +333,11 @@ func read(
 func updateDeleted(
 	ctx context.Context,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion, domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domain.Name.ValueString())
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
@@ -357,11 +357,11 @@ func updateDeleted(
 func updateAdded(
 	ctx context.Context,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion)
+	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, serviceData.ID, serviceData.Version)
 
 	if !domain.Comment.IsNull() {
 		clientReq.Comment(domain.Comment.ValueString())
@@ -389,11 +389,11 @@ func updateAdded(
 func updateModified(
 	ctx context.Context,
 	api helpers.API,
-	resourceData *data.Resource,
+	serviceData *data.Service,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion, domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domain.Name.ValueString())
 
 	if !domain.Comment.IsNull() {
 		clientReq.Comment(domain.Comment.ValueString())

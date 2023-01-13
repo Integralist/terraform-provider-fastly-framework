@@ -137,9 +137,9 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	lastActive := plan.LastActive.ValueInt64()
 
 	for _, nestedResource := range r.resources {
-		serviceData := data.Resource{
-			ServiceID:      serviceID,
-			ServiceVersion: serviceVersion,
+		serviceData := data.Service{
+			ID:      serviceID,
+			Version: serviceVersion,
 		}
 		if err := nestedResource.Create(ctx, &req, resp, api, &serviceData); err != nil {
 			return
@@ -230,9 +230,9 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			Client:    r.client,
 			ClientCtx: r.clientCtx,
 		}
-		serviceData := data.Resource{
-			ServiceID:      clientResp.GetID(),
-			ServiceVersion: int32(serviceVersion),
+		serviceData := data.Service{
+			ID:      clientResp.GetID(),
+			Version: int32(serviceVersion),
 		}
 		if err := nestedResource.Read(ctx, &req, resp, api, &serviceData); err != nil {
 			return
@@ -323,9 +323,9 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	for _, nestedResource := range r.resources {
 		if nestedResource.HasChanges() {
-			serviceData := data.Resource{
-				ServiceID:      serviceID,
-				ServiceVersion: serviceVersion,
+			serviceData := data.Service{
+				ID:      serviceID,
+				Version: serviceVersion,
 			}
 			if err := nestedResource.Update(ctx, &req, resp, api, &serviceData); err != nil {
 				return
@@ -522,7 +522,7 @@ func determineChanges(
 		// The nestedResource struct has Added, Deleted, Modified fields.
 		// These are used by the nestedResource.Update method (called later).
 		changed, err := nestedResource.InspectChanges(
-			ctx, req, resp, helpers.API{}, &data.Resource{},
+			ctx, req, resp, helpers.API{}, &data.Service{},
 		)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
