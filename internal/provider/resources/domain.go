@@ -439,19 +439,11 @@ func updateModified(
 	return nil
 }
 
-// TODO: This might need to be a generic function because of return types.
-//
-// FIXME: How can we make this reusable across different nested resource types?
-// Original provider converted to maps for a SetDiff comparison.
-// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go#L20
-//
-// IMPORTANT: There is no HasChanges built into the new framework!
-// https://github.com/hashicorp/terraform-plugin-framework/issues/526
+// NOTE: We have to manually track each resource in a nested set attribute.
+// For domains this means computing an ID for each domain, then calculating
+// whether a domain has been added, deleted or modified. If any of those
+// conditions are met, then we must clone the current service version.
 func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
-	// NOTE: We have to manually track each resource in a nested set attribute.
-	// For domains this means computing an ID for each domain, then calculating
-	// whether a domain has been added, deleted or modified. If any of those
-	// conditions are met, then we must clone the current service version.
 	for i := range plan {
 		// NOTE: We need a pointer to the resource struct so we can set an ID.
 		planDomain := &plan[i]

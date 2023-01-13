@@ -27,14 +27,6 @@ func Service() map[string]schema.Attribute {
 				helpers.StringDefaultModifier{Default: "Managed by Terraform"},
 			},
 		},
-		// TODO: validate SetNestedAttribute doesn't have diff issues.
-		// Looks like from some simple testing that moving elements around inside
-		// the set does not cause a diff which is what happened with the original
-		// block set did from the v2 SDK. We should confirm this is the case by
-		// building the provider and writing some terraform configuration to
-		// consume it. If it's still an issue then we should consider using the
-		// MapNestedAttribute instead.
-		// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#mapnestedattribute
 		"domains": schema.SetNestedAttribute{
 			Required: true,
 			NestedObject: schema.NestedAttributeObject{

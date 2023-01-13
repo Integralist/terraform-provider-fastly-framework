@@ -116,9 +116,6 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 // Config and planned state values should be read from the CreateRequest.
 // New state values set on the CreateResponse.
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	// TODO: How to use wrapper struct instead?
-	// This would make the nested resources logic easier as I can type assert to a single struct type.
-	// https://discuss.hashicorp.com/t/how-to-use-embedded-struct-for-plan-get/48841
 	var plan *models.ServiceVCL
 
 	// Read Terraform plan data into the model
