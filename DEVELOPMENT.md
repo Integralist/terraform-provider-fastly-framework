@@ -6,7 +6,7 @@ The latest [HashiCorp Terraform Plugin Framework](https://developer.hashicorp.co
 
 With the original Fastly Terraform provider we had [this issue](https://github.com/fastly/terraform-provider-fastly/issues/631) related to the design of the provider using set 'blocks' to represent a nested resource (even though Terraform has no concept of a nested resource and expects a resource to be a 1:1 mapping with a single API endpoint).
 
-This issue, although not tested, is still likely to affect the new Terraform Plugin Framework. So we need to investigate, and consider whether we want to fix the issue. Because a simple `terraform refresh` appears to resolve the issue in most cases.
+This issue, although not tested, is still expected to affect the new Terraform Plugin Framework. We need to investigate, and consider whether we want to fix the issue. Because a simple `terraform refresh` appears to resolve the issue in most cases.
 
 ## Struct embedding for resource models
 
@@ -21,7 +21,7 @@ https://discuss.hashicorp.com/t/how-to-use-embedded-struct-for-plan-get/48841
 
 The original Fastly Terraform provider, which used the Terraform v2 SDK, was able to identify changes in a resource using an API provided by the Terraform v2 SDK (e.g. `HasChanges`). This API does not exist in the new Terraform Plugin Framework.
 
-This was because Terraform presumed applying a 'plan' wholesale via its API was best. In practice, not all APIs work like this and instead require modified fields. 
+This was because Terraform presumed applying a 'plan' wholesale via its API was best. In practice, not all APIs work like this and instead some require modified fields. 
 
 The result of this is that a resource now needs to identify changes itself but anything other than simple field comparisons are tricky. An example of this within our provider is identifying changes to domains. The Fastly API does not return an 'ID' for a domain, and so we have to generate one ourselves as a computed attribute and use that to track changes.
 
@@ -40,15 +40,6 @@ Go's generics being too restrictive and the Terraform Plugin Framework leaning m
 If we were to marshal a model struct into a map, we still need to know the underlying Terraform types so that we could type assert back to them to utilise their associated APIs, and because Terraform assigns these types to struct fields, it makes reasoning about the map keys comparison harder as well. 
 
 Some resources, such as domains, need custom logic (like calculating a hash of a field for a computed attribute) to execute as part of the change inspection and the fields used for comparison are typically unique as well (e.g. with a domain, we use the dynamically computed hash as our comparison). This makes a generic solution difficult.
-
-One problematic aspect is that we pass a pointer to a concrete type (e.g. `models.ServiceVCL`, `models.ServiceCompute` etc) into the nested attribute handlers. This is a problem because it means within those handlers we have to type assert between the service models. We can avoid those type asserts if we passed instead the `resource.UpdateRequest` and `*resource.UpdateResponse` types from which we source the underlying data. The complexity is now in the fact that we would have to create a new concrete type instance of the nested attribute we need, for example...
-
-```go
-var domains []models.Domain
-req.Plan.GetAttribute(ctx, path.Root("domains"), &domains)
-```
-
-Then we'd need to pass back that value through all the different indirection layers we have until we reach the top-level resource CRUD function we where could reassign to the concrete instance of the service model. This is because we have to mutate the data contained within the nested attribute concrete type, and those values needs storing back into the final state variable at the end of the top-level resource CRUD operation functions.
 
 It might still be possible but it requires consideration. For reference, here is the original provider's diffing logic:
 https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go
