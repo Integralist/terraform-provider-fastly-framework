@@ -264,6 +264,9 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 // Update is called to update the state of the resource.
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
+//
+// NOTE: The service attributes (Name, Comment) are 'versionless'.
+// Other nested attributes will require a new service version.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan *models.ServiceVCL
 	var state *models.ServiceVCL
@@ -280,21 +283,10 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// NOTE: The plan data doesn't contain computed attributes.
-	// So we need to read it from the current state.
-	plan.Version = state.Version
-	plan.LastActive = state.LastActive
-
-	// NOTE: The service attributes (Name, Comment) are 'versionless'.
-	// Other nested attributes will require a new service version.
-
 	resourcesChanged, err := determineChanges(ctx, r.resources, &req, resp)
 	if err != nil {
 		return
 	}
-
-	serviceID := plan.ID.ValueString()
-	serviceVersion := int32(plan.Version.ValueInt64())
 
 	// Refresh the Terraform plan data into the model.
 	// As the nested resources would have likely mutated their attribute.
@@ -303,12 +295,13 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// IMPORTANT: Put back any overridden attributes.
-	// The above req.Plan.Get() ensures `plan` contains all updated nested data.
-	// But this means we override the Version and LastActive fields.
-	// As these are set just before the r.resources loop is executed.
+	// NOTE: The plan data doesn't contain computed attributes.
+	// So we need to read it from the current state.
 	plan.Version = state.Version
 	plan.LastActive = state.LastActive
+
+	serviceID := plan.ID.ValueString()
+	serviceVersion := int32(plan.Version.ValueInt64())
 
 	api := helpers.API{
 		Client:    r.client,
