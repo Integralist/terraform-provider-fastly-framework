@@ -79,24 +79,15 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	resourceData *data.Resource,
 ) error {
-	state := resourceData.State
+	var domains []models.Domain
+	req.State.GetAttribute(ctx, path.Root("domains"), &domains)
 
-	switch resourceData.Type {
-	case enums.Compute:
-	// ...
-	case enums.VCL:
-		stateData, ok := state.(*models.ServiceVCL)
-		if !ok {
-			return fmt.Errorf("unable to convert %T into the expected model type", state)
-		}
-
-		remoteDomains, err := read(ctx, stateData.Domains, api, resourceData, resp)
-		if err != nil {
-			return err
-		}
-
-		stateData.Domains = remoteDomains
+	remoteDomains, err := read(ctx, domains, api, resourceData, resp)
+	if err != nil {
+		return err
 	}
+
+	req.State.SetAttribute(ctx, path.Root("domains"), &remoteDomains)
 
 	return nil
 }

@@ -206,30 +206,25 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	state.Comment = types.StringValue(clientResp.GetComment())
-	state.ID = types.StringValue(clientResp.GetID())
-	state.Name = types.StringValue(clientResp.GetName())
-
-	// NOTE: When importing a service there is no prior 'version' in the state.
-	// So we presume the user wants to import the last active service version.
+	// NOTE: When importing a service there is no prior 'serviceVersion' in the state.
+	// So we presume the user wants to import the last active service serviceVersion.
 	// Which we retrieve from the GetServiceDetail call.
-	var foundActive bool
+	var (
+		foundActive    bool
+		serviceVersion int64
+	)
 	versions := clientResp.GetVersions()
 	for _, version := range versions {
 		if version.GetActive() {
-			lastActive := int64(version.GetNumber())
-			state.Version = types.Int64Value(lastActive)
-			state.LastActive = types.Int64Value(lastActive)
+			serviceVersion = int64(version.GetNumber())
 			foundActive = true
 			break
 		}
 	}
 
-	// NOTE: In case user imports service with no active versions, use latest.
 	if !foundActive {
-		version := int64(versions[0].GetNumber())
-		state.Version = types.Int64Value(version)
-		state.LastActive = types.Int64Value(version)
+		// In case user imports service with no active versions, use latest.
+		serviceVersion = int64(versions[0].GetNumber())
 	}
 
 	for _, nestedResource := range r.resources {
@@ -238,8 +233,8 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			ClientCtx: r.clientCtx,
 		}
 		serviceData := data.Resource{
-			ServiceID:      state.ID.ValueString(),
-			ServiceVersion: int32(state.Version.ValueInt64()),
+			ServiceID:      clientResp.GetID(),
+			ServiceVersion: int32(serviceVersion),
 			State:          state,
 			Type:           enums.VCL,
 		}
@@ -247,6 +242,22 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			return
 		}
 	}
+
+	// Refresh the Terraform plan data into the model.
+	// As the nested resources would have likely mutated their attribute.
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// NOTE: We execute nested resource reads first to avoid overidding state.
+	// See the above line which takes the updated state and assigns to `state`.
+
+	state.Comment = types.StringValue(clientResp.GetComment())
+	state.ID = types.StringValue(clientResp.GetID())
+	state.Name = types.StringValue(clientResp.GetName())
+	state.Version = types.Int64Value(serviceVersion)
+	state.LastActive = types.Int64Value(serviceVersion)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
