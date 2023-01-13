@@ -52,5 +52,11 @@ type Resource interface {
 	// HasChanges indicates if the nested resource contains configuration changes.
 	HasChanges() bool
 	// InspectChanges checks for configuration changes and persists to data model.
-	InspectChanges(resourceData *data.Resource) (bool, error)
+	InspectChanges(
+		ctx context.Context,
+		req *resource.UpdateRequest,
+		resp *resource.UpdateResponse,
+		api helpers.API,
+		resourceData *data.Resource,
+	) (bool, error)
 }

@@ -97,7 +97,7 @@ func (r *DomainResource) Read(
 // New state values set on the UpdateResponse.
 func (r *DomainResource) Update(
 	ctx context.Context,
-	req *resource.UpdateRequest,
+	_ *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
 	resourceData *data.Resource,
@@ -141,36 +141,32 @@ func (r *DomainResource) Update(
 }
 
 // InspectChanges checks for configuration changes and persists to data model.
-func (r *DomainResource) InspectChanges(resourceData *data.Resource) (bool, error) {
-	plan := resourceData.Plan
-	state := resourceData.State
+func (r *DomainResource) InspectChanges(
+	ctx context.Context,
+	req *resource.UpdateRequest,
+	_ *resource.UpdateResponse,
+	_ helpers.API,
+	_ *data.Resource,
+) (bool, error) {
+	var planDomains []models.Domain
+	var stateDomains []models.Domain
 
-	switch resourceData.Type {
-	case enums.Compute:
-	// ...
-	case enums.VCL:
-		planData, ok := plan.(*models.ServiceVCL)
-		if !ok {
-			return false, fmt.Errorf("unable to convert %T into the expected model type", plan)
-		}
-		stateData, ok := state.(*models.ServiceVCL)
-		if !ok {
-			return false, fmt.Errorf("unable to convert %T into the expected model type", state)
-		}
+	req.Plan.GetAttribute(ctx, path.Root("domains"), &planDomains)
+	req.State.GetAttribute(ctx, path.Root("domains"), &stateDomains)
 
-		r.Changed, r.Added, r.Deleted, r.Modified = inspectChanges(planData.Domains, stateData.Domains)
+	r.Changed, r.Added, r.Deleted, r.Modified = inspectChanges(planDomains, stateDomains)
 
-		tflog.Debug(context.Background(), "Domains", map[string]any{
-			"added":    r.Added,
-			"deleted":  r.Deleted,
-			"modified": r.Modified,
-			"changed":  r.Changed,
-		})
+	tflog.Debug(context.Background(), "Domains", map[string]any{
+		"added":    r.Added,
+		"deleted":  r.Deleted,
+		"modified": r.Modified,
+		"changed":  r.Changed,
+	})
 
-		return r.Changed, nil
-	}
+	// NOTE: the inspectChanges() function mutates the plan domains with an ID.
+	req.Plan.SetAttribute(ctx, path.Root("domains"), &planDomains)
 
-	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.Type)
+	return r.Changed, nil
 }
 
 // HasChanges indicates if the nested resource contains configuration changes.
@@ -427,10 +423,10 @@ func updateModified(
 // For domains this means computing an ID for each domain, then calculating
 // whether a domain has been added, deleted or modified. If any of those
 // conditions are met, then we must clone the current service version.
-func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
-	for i := range plan {
+func inspectChanges(planDomains, stateDomains []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
+	for i := range planDomains {
 		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &plan[i]
+		planDomain := &planDomains[i]
 
 		// ID is a computed value so we need to regenerate it from the domain name.
 		if planDomain.ID.IsUnknown() {
@@ -439,7 +435,7 @@ func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, 
 		}
 
 		var foundDomain bool
-		for _, stateDomain := range state {
+		for _, stateDomain := range stateDomains {
 			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
 				foundDomain = true
 				// NOTE: It's not possible for the domain's Name field to not match.
@@ -460,9 +456,9 @@ func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, 
 		}
 	}
 
-	for _, stateDomain := range state {
+	for _, stateDomain := range stateDomains {
 		var foundDomain bool
-		for _, planDomain := range plan {
+		for _, planDomain := range planDomains {
 			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
 				foundDomain = true
 				break

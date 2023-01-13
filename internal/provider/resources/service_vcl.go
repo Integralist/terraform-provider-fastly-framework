@@ -243,7 +243,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		}
 	}
 
-	// Refresh the Terraform plan data into the model.
+	// Refresh the Terraform state data into the model.
 	// As the nested resources would have likely mutated their attribute.
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -292,13 +292,27 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
 	// Other nested attributes will require a new service version.
 
-	resourcesChanged, err := determineChanges(ctx, r.resources, state, plan, resp)
+	resourcesChanged, err := determineChanges(ctx, r.resources, state, plan, &req, resp)
 	if err != nil {
 		return
 	}
 
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
+
+	// Refresh the Terraform plan data into the model.
+	// As the nested resources would have likely mutated their attribute.
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// IMPORTANT: Put back any overridden attributes.
+	// The above req.Plan.Get() ensures `plan` contains all updated nested data.
+	// But this means we override the Version and LastActive fields.
+	// As these are set just before the r.resources loop is executed.
+	plan.Version = state.Version
+	plan.LastActive = state.LastActive
 
 	api := helpers.API{
 		Client:    r.client,
@@ -509,6 +523,7 @@ func determineChanges(
 	ctx context.Context,
 	nestedResources []interfaces.Resource,
 	state, plan *models.ServiceVCL,
+	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) (resourcesChanged int, err error) {
 	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
@@ -526,7 +541,9 @@ func determineChanges(
 		// NOTE: InspectChanges mutates the nested resource.
 		// The nestedResource struct has Added, Deleted, Modified fields.
 		// These are used by the nestedResource.Update method (called later).
-		changed, err := nestedResource.InspectChanges(&serviceData)
+		changed, err := nestedResource.InspectChanges(
+			ctx, req, resp, helpers.API{}, &serviceData,
+		)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
 			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
