@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
@@ -50,7 +51,7 @@ func (r *DomainResource) Create(
 	_ resource.CreateRequest,
 	resp *resource.CreateResponse,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 ) error {
 	state := resourceData.GetState()
 
@@ -84,7 +85,7 @@ func (r *DomainResource) Read(
 	_ resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 ) error {
 	state := resourceData.GetState()
 
@@ -116,7 +117,7 @@ func (r *DomainResource) Update(
 	_ resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 ) error {
 	// IMPORTANT: We need to delete, then add, then update.
 	// Some Fastly resources (like snippets) must have unique names.
@@ -157,7 +158,7 @@ func (r *DomainResource) Update(
 }
 
 // InspectChanges checks for configuration changes and persists to data model.
-func (r *DomainResource) InspectChanges(resourceData interfaces.ResourceData) (bool, error) {
+func (r *DomainResource) InspectChanges(resourceData *data.Resource) (bool, error) {
 	plan := resourceData.GetPlan()
 	state := resourceData.GetState()
 
@@ -199,7 +200,7 @@ func create(
 	ctx context.Context,
 	domain *models.Domain,
 	api helpers.API,
-	service interfaces.ResourceData,
+	service *data.Resource,
 	resp *resource.CreateResponse,
 ) error {
 	createErr := errors.New("failed to create domain resource")
@@ -249,7 +250,7 @@ func read(
 	ctx context.Context,
 	domains []models.Domain,
 	api helpers.API,
-	service interfaces.ResourceData,
+	service *data.Resource,
 	resp *resource.ReadResponse,
 ) ([]models.Domain, error) {
 	clientReq := api.Client.DomainAPI.ListDomains(
@@ -353,7 +354,7 @@ func read(
 func updateDeleted(
 	ctx context.Context,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
@@ -377,7 +378,7 @@ func updateDeleted(
 func updateAdded(
 	ctx context.Context,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
@@ -409,7 +410,7 @@ func updateAdded(
 func updateModified(
 	ctx context.Context,
 	api helpers.API,
-	resourceData interfaces.ResourceData,
+	resourceData *data.Resource,
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
