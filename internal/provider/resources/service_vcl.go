@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
@@ -141,7 +140,6 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		serviceData := data.Resource{
 			ServiceID:      serviceID,
 			ServiceVersion: serviceVersion,
-			State:          plan,
 		}
 		if err := nestedResource.Create(ctx, &req, resp, api, &serviceData); err != nil {
 			return
@@ -235,8 +233,6 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		serviceData := data.Resource{
 			ServiceID:      clientResp.GetID(),
 			ServiceVersion: int32(serviceVersion),
-			State:          state,
-			Type:           enums.VCL,
 		}
 		if err := nestedResource.Read(ctx, &req, resp, api, &serviceData); err != nil {
 			return
@@ -292,7 +288,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
 	// Other nested attributes will require a new service version.
 
-	resourcesChanged, err := determineChanges(ctx, r.resources, state, plan, &req, resp)
+	resourcesChanged, err := determineChanges(ctx, r.resources, &req, resp)
 	if err != nil {
 		return
 	}
@@ -337,8 +333,6 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			serviceData := data.Resource{
 				ServiceID:      serviceID,
 				ServiceVersion: serviceVersion,
-				State:          plan,
-				Type:           enums.VCL,
 			}
 			if err := nestedResource.Update(ctx, &req, resp, api, &serviceData); err != nil {
 				return
@@ -522,7 +516,6 @@ func createService(
 func determineChanges(
 	ctx context.Context,
 	nestedResources []interfaces.Resource,
-	state, plan *models.ServiceVCL,
 	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) (resourcesChanged int, err error) {
@@ -532,17 +525,11 @@ func determineChanges(
 	// incorrectly set the boolean to false when prior items DID have resourcesChanged.
 
 	for _, nestedResource := range nestedResources {
-		serviceData := data.Resource{
-			Type:  enums.VCL,
-			State: state,
-			Plan:  plan,
-		}
-
 		// NOTE: InspectChanges mutates the nested resource.
 		// The nestedResource struct has Added, Deleted, Modified fields.
 		// These are used by the nestedResource.Update method (called later).
 		changed, err := nestedResource.InspectChanges(
-			ctx, req, resp, helpers.API{}, &serviceData,
+			ctx, req, resp, helpers.API{}, &data.Resource{},
 		)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
