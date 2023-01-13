@@ -129,28 +129,40 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		ClientCtx: r.clientCtx,
 	}
 
-	// NOTE: The function mutates `plan`
+	// NOTE: The function mutates `plan` with Service ID, version and last active.
 	if err := createService(ctx, api, plan, resp); err != nil {
 		return
 	}
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
-
-	// TODO: Ensure API errors are managed accordingly.
-	// https://github.com/fastly/terraform-provider-fastly/issues/631
-	// https://stackoverflow.com/questions/75059592/how-should-terraform-provider-handle-resource-error-when-it-consists-of-multiple
-	// The question is whether we want to fix this or not.
+	lastActive := plan.LastActive.ValueInt64()
 
 	for _, nestedResource := range r.resources {
 		serviceData := data.Resource{
-			Type:           enums.VCL,
 			ServiceID:      serviceID,
 			ServiceVersion: serviceVersion,
 			State:          plan,
 		}
-		if err := nestedResource.Create(ctx, req, resp, api, &serviceData); err != nil {
+		if err := nestedResource.Create(ctx, &req, resp, api, &serviceData); err != nil {
 			return
 		}
+	}
+
+	// Refresh the Terraform plan data into the model.
+	// As the nested resources would have likely mutated their attribute.
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// IMPORTANT: Put back any overridden attributes.
+	// The above req.Plan.Get() ensures `plan` contains all updated nested data.
+	// But this means we override the ID, Version and LastActive fields.
+	// As these are set by createService() before the r.resources loop executed.
+	plan.ID = types.StringValue(serviceID)
+	plan.Version = types.Int64Value(int64(serviceVersion))
+	if lastActive > 0 {
+		plan.LastActive = types.Int64Value(lastActive)
 	}
 
 	if plan.Activate.ValueBool() {
@@ -226,12 +238,12 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 			ClientCtx: r.clientCtx,
 		}
 		serviceData := data.Resource{
-			Type:           enums.VCL,
 			ServiceID:      state.ID.ValueString(),
 			ServiceVersion: int32(state.Version.ValueInt64()),
 			State:          state,
+			Type:           enums.VCL,
 		}
-		if err := nestedResource.Read(ctx, req, resp, api, &serviceData); err != nil {
+		if err := nestedResource.Read(ctx, &req, resp, api, &serviceData); err != nil {
 			return
 		}
 	}
@@ -298,12 +310,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	for _, nestedResource := range r.resources {
 		if nestedResource.HasChanges() {
 			serviceData := data.Resource{
-				Type:           enums.VCL,
 				ServiceID:      serviceID,
 				ServiceVersion: serviceVersion,
 				State:          plan,
+				Type:           enums.VCL,
 			}
-			if err := nestedResource.Update(ctx, req, resp, api, &serviceData); err != nil {
+			if err := nestedResource.Update(ctx, &req, resp, api, &serviceData); err != nil {
 				return
 			}
 		}
@@ -474,6 +486,7 @@ func createService(
 	version := versions[0].GetNumber()
 	plan.Version = types.Int64Value(int64(version))
 
+	plan.LastActive = types.Int64Null()
 	if plan.Activate.ValueBool() {
 		plan.LastActive = plan.Version
 	}

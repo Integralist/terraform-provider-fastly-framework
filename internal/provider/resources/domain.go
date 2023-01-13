@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -48,31 +49,22 @@ func (r *DomainResource) GetType() enums.NestedType {
 // New state values set on the CreateResponse.
 func (r *DomainResource) Create(
 	ctx context.Context,
-	_ resource.CreateRequest,
+	req *resource.CreateRequest,
 	resp *resource.CreateResponse,
 	api helpers.API,
 	resourceData *data.Resource,
 ) error {
-	state := resourceData.State
+	var domains []models.Domain
+	req.Plan.GetAttribute(ctx, path.Root("domains"), &domains)
 
-	switch resourceData.Type {
-	case enums.Compute:
-	// ...
-	case enums.VCL:
-		stateData, ok := state.(*models.ServiceVCL)
-		if !ok {
-			return fmt.Errorf("unable to convert %T into the expected model type", state)
+	for i := range domains {
+		domain := &domains[i]
+		if err := create(ctx, domain, api, resourceData, resp); err != nil {
+			return err
 		}
-
-		for i := range stateData.Domains {
-			domain := &stateData.Domains[i]
-			if err := create(ctx, domain, api, resourceData, resp); err != nil {
-				return err
-			}
-		}
-
-		resourceData.State = stateData
 	}
+
+	req.Plan.SetAttribute(ctx, path.Root("domains"), &domains)
 
 	return nil
 }
@@ -82,7 +74,7 @@ func (r *DomainResource) Create(
 // New state values set on the ReadResponse.
 func (r *DomainResource) Read(
 	ctx context.Context,
-	_ resource.ReadRequest,
+	req *resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
 	resourceData *data.Resource,
@@ -114,7 +106,7 @@ func (r *DomainResource) Read(
 // New state values set on the UpdateResponse.
 func (r *DomainResource) Update(
 	ctx context.Context,
-	_ resource.UpdateRequest,
+	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
 	resourceData *data.Resource,

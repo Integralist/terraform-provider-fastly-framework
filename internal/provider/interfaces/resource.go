@@ -16,7 +16,7 @@ type Resource interface {
 	// New state values set on the CreateResponse.
 	Create(
 		ctx context.Context,
-		req resource.CreateRequest,
+		req *resource.CreateRequest,
 		resp *resource.CreateResponse,
 		api helpers.API,
 		resourceData *data.Resource,
@@ -26,7 +26,7 @@ type Resource interface {
 	// New state values set on the ReadResponse.
 	Read(
 		ctx context.Context,
-		req resource.ReadRequest,
+		req *resource.ReadRequest,
 		resp *resource.ReadResponse,
 		api helpers.API,
 		resourceData *data.Resource,
@@ -42,7 +42,7 @@ type Resource interface {
 	// All other modifications to the service resource will come to 'Update'.
 	Update(
 		ctx context.Context,
-		req resource.UpdateRequest,
+		req *resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
 		resourceData *data.Resource,
