@@ -2,6 +2,12 @@
 
 The latest [HashiCorp Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework) presents challenges that we should investigate and find more elegant solutions for.
 
+## Handling errors with nested attributes.
+
+With the original Fastly Terraform provider we had [this issue](https://github.com/fastly/terraform-provider-fastly/issues/631) related to the design of the provider using set 'blocks' to represent a nested resource (even though Terraform has no concept of a nested resource and expects a resource to be a 1:1 mapping with a single API endpoint).
+
+This issue, although not tested, is still likely to affect the new Terraform Plugin Framework. So we need to investigate, and consider whether we want to fix the issue. Because a simple `terraform refresh` appears to resolve the issue in most cases.
+
 ## Struct embedding for resource models
 
 When defining a resource you must define an associated model using the `struct` data type. 
