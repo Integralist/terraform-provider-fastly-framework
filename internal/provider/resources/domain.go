@@ -53,9 +53,9 @@ func (r *DomainResource) Create(
 	api helpers.API,
 	resourceData *data.Resource,
 ) error {
-	state := resourceData.GetState()
+	state := resourceData.State
 
-	switch resourceData.GetType() {
+	switch resourceData.Type {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
@@ -71,7 +71,7 @@ func (r *DomainResource) Create(
 			}
 		}
 
-		resourceData.SetState(stateData)
+		resourceData.State = stateData
 	}
 
 	return nil
@@ -87,9 +87,9 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	resourceData *data.Resource,
 ) error {
-	state := resourceData.GetState()
+	state := resourceData.State
 
-	switch resourceData.GetType() {
+	switch resourceData.Type {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
@@ -159,10 +159,10 @@ func (r *DomainResource) Update(
 
 // InspectChanges checks for configuration changes and persists to data model.
 func (r *DomainResource) InspectChanges(resourceData *data.Resource) (bool, error) {
-	plan := resourceData.GetPlan()
-	state := resourceData.GetState()
+	plan := resourceData.Plan
+	state := resourceData.State
 
-	switch resourceData.GetType() {
+	switch resourceData.Type {
 	case enums.Compute:
 	// ...
 	case enums.VCL:
@@ -187,7 +187,7 @@ func (r *DomainResource) InspectChanges(resourceData *data.Resource) (bool, erro
 		return r.Changed, nil
 	}
 
-	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.GetType())
+	return false, fmt.Errorf("unrecognised resource data type: %+v", resourceData.Type)
 }
 
 // HasChanges indicates if the nested resource contains configuration changes.
@@ -219,8 +219,8 @@ func create(
 	// The service might exist if it was imported or a secondary config run.
 	clientReq := api.Client.DomainAPI.CreateDomain(
 		api.ClientCtx,
-		service.GetServiceID(),
-		service.GetServiceVersion(),
+		service.ServiceID,
+		service.ServiceVersion,
 	)
 
 	if !domain.Comment.IsNull() {
@@ -255,8 +255,8 @@ func read(
 ) ([]models.Domain, error) {
 	clientReq := api.Client.DomainAPI.ListDomains(
 		api.ClientCtx,
-		service.GetServiceID(),
-		service.GetServiceVersion(),
+		service.ServiceID,
+		service.ServiceVersion,
 	)
 
 	clientResp, httpResp, err := clientReq.Execute()
@@ -358,7 +358,7 @@ func updateDeleted(
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion, domain.Name.ValueString())
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
@@ -382,7 +382,7 @@ func updateAdded(
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion())
+	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion)
 
 	if !domain.Comment.IsNull() {
 		clientReq.Comment(domain.Comment.ValueString())
@@ -414,7 +414,7 @@ func updateModified(
 	domain models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.ServiceID, resourceData.ServiceVersion, domain.Name.ValueString())
 
 	if !domain.Comment.IsNull() {
 		clientReq.Comment(domain.Comment.ValueString())
