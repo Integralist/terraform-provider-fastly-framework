@@ -293,6 +293,11 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
+	// TODO: Check if the version we have is correct.
+	// e.g. should it be latest 'active' or just latest version?
+	// It should depend on `activate` field but also whether the service pre-exists.
+	// The service might exist if it was imported or a secondary config run.
+
 	for _, nestedResource := range r.resources {
 		if nestedResource.HasChanges() {
 			serviceData := data.Resource{

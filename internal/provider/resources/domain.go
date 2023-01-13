@@ -47,7 +47,7 @@ func (r *DomainResource) GetType() enums.NestedType {
 // New state values set on the CreateResponse.
 func (r *DomainResource) Create(
 	ctx context.Context,
-	req resource.CreateRequest,
+	_ resource.CreateRequest,
 	resp *resource.CreateResponse,
 	api helpers.API,
 	resourceData interfaces.ResourceData,
@@ -81,7 +81,7 @@ func (r *DomainResource) Create(
 // New state values set on the ReadResponse.
 func (r *DomainResource) Read(
 	ctx context.Context,
-	req resource.ReadRequest,
+	_ resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
 	resourceData interfaces.ResourceData,
@@ -113,7 +113,7 @@ func (r *DomainResource) Read(
 // New state values set on the UpdateResponse.
 func (r *DomainResource) Update(
 	ctx context.Context,
-	req resource.UpdateRequest,
+	_ resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 	api helpers.API,
 	resourceData interfaces.ResourceData,
@@ -131,80 +131,19 @@ func (r *DomainResource) Update(
 	// Then we can expose a `dynamic` boolean attribute to control the type.
 
 	for _, domain := range r.Deleted {
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
-
-		_, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
-			return err
-		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		if err := updateDeleted(ctx, api, resourceData, domain, resp); err != nil {
 			return err
 		}
 	}
 
 	for _, domain := range r.Added {
-		// TODO: Abstract the following API call into a function as it's called multiple times.
-
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion())
-
-		if !domain.Comment.IsNull() {
-			clientReq.Comment(domain.Comment.ValueString())
-		}
-
-		if !domain.Name.IsNull() {
-			clientReq.Name(domain.Name.ValueString())
-		}
-
-		_, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
-			return err
-		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		if err := updateAdded(ctx, api, resourceData, domain, resp); err != nil {
 			return err
 		}
 	}
 
 	for _, domain := range r.Modified {
-		// TODO: Check if the version we have is correct.
-		// e.g. should it be latest 'active' or just latest version?
-		// It should depend on `activate` field but also whether the service pre-exists.
-		// The service might exist if it was imported or a secondary config run.
-		clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
-
-		if !domain.Comment.IsNull() {
-			clientReq.Comment(domain.Comment.ValueString())
-		}
-
-		// NOTE: We don't bother to check/update the domain's Name field.
-		// This is because if the name of the domain has changed, then that means
-		// the a new domain will be added and the original domain deleted. Thus,
-		// we'll only have a domain as 'modified' if the Comment field was modified.
-
-		_, httpResp, err := clientReq.Execute()
-		if err != nil {
-			tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
-			return err
-		}
-		if httpResp.StatusCode != http.StatusOK {
-			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		if err := updateModified(ctx, api, resourceData, domain, resp); err != nil {
 			return err
 		}
 	}
@@ -253,69 +192,6 @@ func (r *DomainResource) InspectChanges(resourceData interfaces.ResourceData) (b
 // HasChanges indicates if the nested resource contains configuration changes.
 func (r *DomainResource) HasChanges() bool {
 	return r.Changed
-}
-
-// TODO: This might need to be a generic function because of return types.
-//
-// FIXME: How can we make this reusable across different nested resource types?
-// Original provider converted to maps for a SetDiff comparison.
-// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go#L20
-//
-// IMPORTANT: There is no HasChanges built into the new framework!
-// https://github.com/hashicorp/terraform-plugin-framework/issues/526
-func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
-	// NOTE: We have to manually track each resource in a nested set attribute.
-	// For domains this means computing an ID for each domain, then calculating
-	// whether a domain has been added, deleted or modified. If any of those
-	// conditions are met, then we must clone the current service version.
-	for i := range plan {
-		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &plan[i]
-
-		// ID is a computed value so we need to regenerate it from the domain name.
-		if planDomain.ID.IsUnknown() {
-			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
-			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
-		var foundDomain bool
-		for _, stateDomain := range state {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				// NOTE: It's not possible for the domain's Name field to not match.
-				// This is because we first check the ID field matches, and that is
-				// based on a hash of the domain name. Because of this we don't bother
-				// checking if planDomain.Name and stateDomain.Name are not equal.
-				if !planDomain.Comment.Equal(stateDomain.Comment) {
-					changed = true
-					modified = append(modified, *planDomain)
-				}
-				break
-			}
-		}
-
-		if !foundDomain {
-			changed = true
-			added = append(added, *planDomain)
-		}
-	}
-
-	for _, stateDomain := range state {
-		var foundDomain bool
-		for _, planDomain := range plan {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
-				foundDomain = true
-				break
-			}
-		}
-
-		if !foundDomain {
-			changed = true
-			deleted = append(deleted, stateDomain)
-		}
-	}
-
-	return changed, added, deleted, modified
 }
 
 // create is the common behaviour for creating this resource.
@@ -472,4 +348,156 @@ func read(
 	}
 
 	return remoteDomains, nil
+}
+
+func updateDeleted(
+	ctx context.Context,
+	api helpers.API,
+	resourceData interfaces.ResourceData,
+	domain models.Domain,
+	resp *resource.UpdateResponse,
+) error {
+	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
+		return err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return err
+	}
+
+	return nil
+}
+
+func updateAdded(
+	ctx context.Context,
+	api helpers.API,
+	resourceData interfaces.ResourceData,
+	domain models.Domain,
+	resp *resource.UpdateResponse,
+) error {
+	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion())
+
+	if !domain.Comment.IsNull() {
+		clientReq.Comment(domain.Comment.ValueString())
+	}
+
+	if !domain.Name.IsNull() {
+		clientReq.Name(domain.Name.ValueString())
+	}
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
+		return err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return err
+	}
+
+	return nil
+}
+
+func updateModified(
+	ctx context.Context,
+	api helpers.API,
+	resourceData interfaces.ResourceData,
+	domain models.Domain,
+	resp *resource.UpdateResponse,
+) error {
+	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, resourceData.GetServiceID(), resourceData.GetServiceVersion(), domain.Name.ValueString())
+
+	if !domain.Comment.IsNull() {
+		clientReq.Comment(domain.Comment.ValueString())
+	}
+
+	// NOTE: We don't bother to check/update the domain's Name field.
+	// This is because if the name of the domain has changed, then that means
+	// the a new domain will be added and the original domain deleted. Thus,
+	// we'll only have a domain as 'modified' if the Comment field was modified.
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
+		return err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return err
+	}
+
+	return nil
+}
+
+// TODO: This might need to be a generic function because of return types.
+//
+// FIXME: How can we make this reusable across different nested resource types?
+// Original provider converted to maps for a SetDiff comparison.
+// https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go#L20
+//
+// IMPORTANT: There is no HasChanges built into the new framework!
+// https://github.com/hashicorp/terraform-plugin-framework/issues/526
+func inspectChanges(plan, state []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
+	// NOTE: We have to manually track each resource in a nested set attribute.
+	// For domains this means computing an ID for each domain, then calculating
+	// whether a domain has been added, deleted or modified. If any of those
+	// conditions are met, then we must clone the current service version.
+	for i := range plan {
+		// NOTE: We need a pointer to the resource struct so we can set an ID.
+		planDomain := &plan[i]
+
+		// ID is a computed value so we need to regenerate it from the domain name.
+		if planDomain.ID.IsUnknown() {
+			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
+			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
+		}
+
+		var foundDomain bool
+		for _, stateDomain := range state {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				// NOTE: It's not possible for the domain's Name field to not match.
+				// This is because we first check the ID field matches, and that is
+				// based on a hash of the domain name. Because of this we don't bother
+				// checking if planDomain.Name and stateDomain.Name are not equal.
+				if !planDomain.Comment.Equal(stateDomain.Comment) {
+					changed = true
+					modified = append(modified, *planDomain)
+				}
+				break
+			}
+		}
+
+		if !foundDomain {
+			changed = true
+			added = append(added, *planDomain)
+		}
+	}
+
+	for _, stateDomain := range state {
+		var foundDomain bool
+		for _, planDomain := range plan {
+			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+				foundDomain = true
+				break
+			}
+		}
+
+		if !foundDomain {
+			changed = true
+			deleted = append(deleted, stateDomain)
+		}
+	}
+
+	return changed, added, deleted, modified
 }
