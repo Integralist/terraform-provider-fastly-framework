@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 )
 
 // Resource represents an entity that has an associated Fastly API endpoint.
@@ -47,8 +46,6 @@ type Resource interface {
 		api helpers.API,
 		serviceData *data.Service,
 	) error
-	// GetType returns the nested resource type (e.g. enums.Domain)
-	GetType() enums.NestedType
 	// HasChanges indicates if the nested resource contains configuration changes.
 	HasChanges() bool
 	// InspectChanges checks for configuration changes and persists to data model.

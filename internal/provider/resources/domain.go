@@ -13,22 +13,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
 // NewDomainResource returns a new resource entity.
 func NewDomainResource() interfaces.Resource {
-	return &DomainResource{
-		Type: enums.Domain,
-	}
+	return &DomainResource{}
 }
 
 // DomainResource represents a Fastly entity.
 type DomainResource struct {
-	// Type is the nested resource type within the Fastly service.
-	Type enums.NestedType
 	// Added represents any new resources.
 	Added []models.Domain
 	// Deleted represents any deleted resources.
@@ -37,11 +32,6 @@ type DomainResource struct {
 	Modified []models.Domain
 	// Changed indicates if the resource has changes.
 	Changed bool
-}
-
-// GetType returns the nested resource type (e.g. enums.Domain)
-func (r *DomainResource) GetType() enums.NestedType {
-	return r.Type
 }
 
 // Create is called when the provider must create a new resource.

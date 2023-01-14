@@ -2,7 +2,6 @@ package models
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/enums"
 )
 
 // ServiceVCL describes the resource data model.
@@ -33,9 +32,4 @@ type ServiceVCL struct {
 	StaleIfErrorTTL types.Int64 `tfsdk:"stale_if_error_ttl"`
 	// Version is the latest service version the provider will clone from.
 	Version types.Int64 `tfsdk:"version"`
-}
-
-// GetType returns the service type.
-func (s ServiceVCL) GetType() enums.ServiceType {
-	return enums.VCL
 }
