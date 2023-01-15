@@ -115,26 +115,15 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 // Config and planned state values should be read from the CreateRequest.
 // New state values set on the CreateResponse.
 func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan *models.ServiceVCL
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	api := helpers.API{
 		Client:    r.client,
 		ClientCtx: r.clientCtx,
 	}
 
-	// NOTE: The function mutates `plan` with Service ID, version and last active.
-	if err := createService(ctx, api, plan, resp); err != nil {
+	serviceID, serviceVersion, err := createService(ctx, api, req, resp)
+	if err != nil {
 		return
 	}
-	serviceID := plan.ID.ValueString()
-	serviceVersion := int32(plan.Version.ValueInt64())
-	lastActive := plan.LastActive.ValueInt64()
 
 	for _, nestedResource := range r.resources {
 		serviceData := data.Service{
@@ -146,6 +135,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		}
 	}
 
+	var plan *models.ServiceVCL
+
 	// Refresh the Terraform plan data into the model.
 	// As the nested resources would have likely mutated their attribute.
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -153,17 +144,13 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	// IMPORTANT: Put back any overridden attributes.
-	// The above req.Plan.Get() ensures `plan` contains all updated nested data.
-	// But this means we override the ID, Version and LastActive fields.
-	// As these are set by createService() before the r.resources loop executed.
 	plan.ID = types.StringValue(serviceID)
 	plan.Version = types.Int64Value(int64(serviceVersion))
-	if lastActive > 0 {
-		plan.LastActive = types.Int64Value(lastActive)
-	}
+	plan.LastActive = types.Int64Null()
 
 	if plan.Activate.ValueBool() {
+		plan.LastActive = plan.Version
+
 		// FIXME: Need to check for changes + service already active.
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		_, httpResp, err := clientReq.Execute()
@@ -461,9 +448,17 @@ func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.Confi
 func createService(
 	ctx context.Context,
 	api helpers.API,
-	plan *models.ServiceVCL,
+	req resource.CreateRequest,
 	resp *resource.CreateResponse,
-) error {
+) (serviceID string, serviceVersion int32, err error) {
+	var plan *models.ServiceVCL
+
+	// Read Terraform plan data into the model
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return "", 0, errors.New("failed to read Terraform plan")
+	}
+
 	clientReq := api.Client.ServiceAPI.CreateService(api.ClientCtx)
 	clientReq.Comment(plan.Comment.ValueString())
 	clientReq.Name(plan.Name.ValueString())
@@ -473,37 +468,30 @@ func createService(
 	if err != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.CreateService error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create service, got error: %s", err))
-		return err
+		return "", 0, err
 	}
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
-		return fmt.Errorf("failed to create service: %s", httpResp.Status)
+		return "", 0, fmt.Errorf("failed to create service: %s", httpResp.Status)
 	}
 
 	id, ok := clientResp.GetIDOk()
 	if !ok {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
-		return errors.New("failed to create service: no Service ID returned")
+		return "", 0, errors.New("failed to create service: no Service ID returned")
 	}
-	plan.ID = types.StringValue(*id)
 
 	versions, ok := clientResp.GetVersionsOk()
 	if !ok {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", "No Service versions returned")
-		return errors.New("failed to create service: no Service versions returned")
+		return "", 0, errors.New("failed to create service: no Service versions returned")
 	}
 	version := versions[0].GetNumber()
-	plan.Version = types.Int64Value(int64(version))
 
-	plan.LastActive = types.Int64Null()
-	if plan.Activate.ValueBool() {
-		plan.LastActive = plan.Version
-	}
-
-	return nil
+	return *id, version, nil
 }
 
 func determineChanges(
