@@ -43,7 +43,7 @@ var (
 func NewServiceVCLResource() func() resource.Resource {
 	return func() resource.Resource {
 		return &ServiceVCLResource{
-			resources: []interfaces.Resource{
+			nestedResources: []interfaces.Resource{
 				NewDomainResource(),
 			},
 		}
@@ -56,13 +56,13 @@ type ServiceVCLResource struct {
 	client *fastly.APIClient
 	// clientCtx contains the user's API token.
 	clientCtx context.Context
-	// resources is a list of nested resources.
+	// nestedResources is a list of nested nestedResources.
 	//
-	// NOTE: Terraform doesn't have a concept of nested resources.
+	// NOTE: Terraform doesn't have a concept of nested nestedResources.
 	// We're using this terminology because it makes more sense for Fastly.
-	// As our 'nested resources' are actually just nested 'attributes'.
+	// As our 'nested nestedResources' are actually just nested 'attributes'.
 	// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#nested-attributes
-	resources []interfaces.Resource
+	nestedResources []interfaces.Resource
 }
 
 // Metadata should return the full name of the resource.
@@ -125,7 +125,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	for _, nestedResource := range r.resources {
+	for _, nestedResource := range r.nestedResources {
 		serviceData := data.Service{
 			ID:      serviceID,
 			Version: serviceVersion,
@@ -212,7 +212,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		serviceVersion = int64(versions[0].GetNumber())
 	}
 
-	for _, nestedResource := range r.resources {
+	for _, nestedResource := range r.nestedResources {
 		api := helpers.API{
 			Client:    r.client,
 			ClientCtx: r.clientCtx,
@@ -270,7 +270,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	resourcesChanged, err := determineChanges(ctx, r.resources, &req, resp)
+	resourcesChanged, err := determineChanges(ctx, r.nestedResources, &req, resp)
 	if err != nil {
 		return
 	}
@@ -308,7 +308,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// It should depend on `activate` field but also whether the service pre-exists.
 	// The service might exist if it was imported or a secondary config run.
 
-	for _, nestedResource := range r.resources {
+	for _, nestedResource := range r.nestedResources {
 		if nestedResource.HasChanges() {
 			serviceData := data.Service{
 				ID:      serviceID,
