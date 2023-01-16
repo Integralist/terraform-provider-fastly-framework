@@ -125,6 +125,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
+	// IMPORTANT: nestedResources are expected to mutate the plan data.
 	for _, nestedResource := range r.nestedResources {
 		serviceData := data.Service{
 			ID:      serviceID,
@@ -135,10 +136,8 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		}
 	}
 
+	// Store the planned changes so they can be saved into Terraform state.
 	var plan *models.ServiceVCL
-
-	// Refresh the Terraform plan data into the model.
-	// As the nested resources would have likely mutated their attribute.
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -151,7 +150,6 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	if plan.Activate.ValueBool() {
 		plan.LastActive = plan.Version
 
-		// FIXME: Need to check for changes + service already active.
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -161,7 +159,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		}
 	}
 
-	// Save data into Terraform state
+	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
 	tflog.Trace(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
@@ -173,11 +171,10 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 //
 // TODO: How to handle DeletedAt attribute.
 // TODO: How to handle service type mismatch when importing.
-// TODO: How to handle name/comment which are versionless and need `activate`.
+// TODO: How to handle name/comment which are versionless and don't need `activate`.
 func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	// Store the prior state (if any) so it can later be mutated and saved back into state.
 	var state *models.ServiceVCL
-
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -208,10 +205,11 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	if !foundActive {
-		// In case user imports service with no active versions, use latest.
+		// Use latest version if the user imports a service with no active versions.
 		serviceVersion = int64(versions[0].GetNumber())
 	}
 
+	// IMPORTANT: nestedResources are expected to mutate the plan data.
 	for _, nestedResource := range r.nestedResources {
 		api := helpers.API{
 			Client:    r.client,
@@ -226,15 +224,12 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		}
 	}
 
-	// Refresh the Terraform state data into the model.
-	// As the nested resources would have likely mutated their attribute.
+	// Refresh the Terraform state data inside the model.
+	// As the state is expected to be mutated by nested resources.
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// NOTE: We execute nested resource reads first to avoid overidding state.
-	// See the above line which takes the updated state and assigns to `state`.
 
 	state.Comment = types.StringValue(clientResp.GetComment())
 	state.ID = types.StringValue(clientResp.GetID())
@@ -242,7 +237,7 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Version = types.Int64Value(serviceVersion)
 	state.LastActive = types.Int64Value(serviceVersion)
 
-	// Save updated data into Terraform state
+	// Save the updated state data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Trace(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
@@ -255,29 +250,21 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 // NOTE: The service attributes (Name, Comment) are 'versionless'.
 // Other nested attributes will require a new service version.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *models.ServiceVCL
-	var state *models.ServiceVCL
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Read Terraform state data into the model so it can be compared against plan
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
+	// NOTE: The determineChanges() function will mutate the plan model data.
+	// This happens from within nestedResources.InspectChanges().
 	resourcesChanged, err := determineChanges(ctx, r.nestedResources, &req, resp)
 	if err != nil {
 		return
 	}
 
-	// Refresh the Terraform plan data into the model.
-	// As the nested resources would have likely mutated their attribute.
+	var plan *models.ServiceVCL
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state *models.ServiceVCL
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -303,11 +290,8 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	// TODO: Check if the version we have is correct.
-	// e.g. should it be latest 'active' or just latest version?
-	// It should depend on `activate` field but also whether the service pre-exists.
-	// The service might exist if it was imported or a secondary config run.
-
+	// IMPORTANT: nestedResources are expected to mutate the plan data.
+	// NOTE: Update operation blurs CRUD lines as nested resources also handle create and delete.
 	for _, nestedResource := range r.nestedResources {
 		if nestedResource.HasChanges() {
 			serviceData := data.Service{
@@ -325,7 +309,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// Save updated data into Terraform state
+	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
 	if resourcesChanged > 0 {
