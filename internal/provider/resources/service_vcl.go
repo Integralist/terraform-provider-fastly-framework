@@ -282,7 +282,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		ClientCtx: r.clientCtx,
 	}
 
-	if resourcesChanged > 0 {
+	if resourcesChanged {
 		// IMPORTANT: We're shadowing the parent scope's serviceVersion variable.
 		serviceVersion, err = cloneService(ctx, plan, resp, api, serviceID, serviceVersion)
 		if err != nil {
@@ -312,7 +312,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	if resourcesChanged > 0 {
+	if resourcesChanged {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -483,7 +483,7 @@ func determineChanges(
 	nestedResources []interfaces.Resource,
 	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
-) (resourcesChanged int, err error) {
+) (resourcesChanged bool, err error) {
 	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
 	// Because we range over multiple nested attributes, if we had used a boolean
 	// then we might find the last item in the loop had no resourcesChanged and we would
@@ -499,11 +499,11 @@ func determineChanges(
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
 			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
-			return 0, err
+			return false, err
 		}
 
 		if changed {
-			resourcesChanged++
+			resourcesChanged = true
 		}
 	}
 
