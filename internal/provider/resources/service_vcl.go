@@ -120,7 +120,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 		ClientCtx: r.clientCtx,
 	}
 
-	serviceID, serviceVersion, err := createService(ctx, api, req, resp)
+	serviceID, serviceVersion, err := createService(ctx, req, resp, api)
 	if err != nil {
 		return
 	}
@@ -284,7 +284,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	if resourcesChanged > 0 {
 		// IMPORTANT: We're shadowing the parent scope's serviceVersion variable.
-		serviceVersion, err = cloneService(ctx, api, serviceID, serviceVersion, plan, resp)
+		serviceVersion, err = cloneService(ctx, plan, resp, api, serviceID, serviceVersion)
 		if err != nil {
 			return
 		}
@@ -304,7 +304,7 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	err = updateService(ctx, api, plan, state, resp)
+	err = updateService(ctx, plan, resp, api, state)
 	if err != nil {
 		return
 	}
@@ -431,9 +431,9 @@ func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.Confi
 
 func createService(
 	ctx context.Context,
-	api helpers.API,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
+	api helpers.API,
 ) (serviceID string, serviceVersion int32, err error) {
 	var plan *models.ServiceVCL
 
@@ -512,11 +512,11 @@ func determineChanges(
 
 func cloneService(
 	ctx context.Context,
+	plan *models.ServiceVCL,
+	resp *resource.UpdateResponse,
 	api helpers.API,
 	serviceID string,
 	serviceVersion int32,
-	plan *models.ServiceVCL,
-	resp *resource.UpdateResponse,
 ) (version int32, err error) {
 	clientReq := api.Client.VersionAPI.CloneServiceVersion(api.ClientCtx, serviceID, serviceVersion)
 	clientResp, httpResp, err := clientReq.Execute()
@@ -541,10 +541,10 @@ func cloneService(
 
 func updateService(
 	ctx context.Context,
-	api helpers.API,
 	plan *models.ServiceVCL,
-	state *models.ServiceVCL,
 	resp *resource.UpdateResponse,
+	api helpers.API,
+	state *models.ServiceVCL,
 ) error {
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
 	// When cloning (see above) we need to call UpdateServiceVersion.
