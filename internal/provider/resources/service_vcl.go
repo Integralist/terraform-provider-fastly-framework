@@ -9,6 +9,7 @@ import (
 
 	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -74,9 +75,8 @@ func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := schemas.Service()
 
-	// FIXME: Implement Service settings logic.
-	// https://developer.fastly.com/reference/api/vcl-services/settings/
 	attrs["default_ttl"] = schema.Int64Attribute{
+		Computed:            true,
 		MarkdownDescription: "The default Time-to-live (TTL) for requests",
 		Optional:            true,
 		PlanModifiers: []planmodifier.Int64{
@@ -88,6 +88,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		Optional:            true,
 	}
 	attrs["stale_if_error"] = schema.BoolAttribute{
+		Computed:            true,
 		MarkdownDescription: "Enables serving a stale object if there is an error",
 		Optional:            true,
 		PlanModifiers: []planmodifier.Bool{
@@ -95,6 +96,7 @@ func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		},
 	}
 	attrs["stale_if_error_ttl"] = schema.Int64Attribute{
+		Computed:            true,
 		MarkdownDescription: "The default time-to-live (TTL) for serving the stale object for the version",
 		Optional:            true,
 		PlanModifiers: []planmodifier.Int64{
@@ -146,6 +148,13 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 	plan.ID = types.StringValue(serviceID)
 	plan.Version = types.Int64Value(int64(serviceVersion))
 	plan.LastActive = types.Int64Null()
+
+	// NOTE: There is no 'create service settings' API, only 'update'.
+	// So even though we're inside the CREATE function, we call updateSettings().
+	err = updateSettings(ctx, plan, resp.Diagnostics, api)
+	if err != nil {
+		return
+	}
 
 	if plan.Activate.ValueBool() {
 		plan.LastActive = plan.Version
@@ -209,12 +218,13 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 		serviceVersion = int64(versions[0].GetNumber())
 	}
 
+	api := helpers.API{
+		Client:    r.client,
+		ClientCtx: r.clientCtx,
+	}
+
 	// IMPORTANT: nestedResources are expected to mutate the plan data.
 	for _, nestedResource := range r.nestedResources {
-		api := helpers.API{
-			Client:    r.client,
-			ClientCtx: r.clientCtx,
-		}
 		serviceData := data.Service{
 			ID:      clientResp.GetID(),
 			Version: int32(serviceVersion),
@@ -236,6 +246,11 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Name = types.StringValue(clientResp.GetName())
 	state.Version = types.Int64Value(serviceVersion)
 	state.LastActive = types.Int64Value(serviceVersion)
+
+	err = readSettings(ctx, state, resp, api)
+	if err != nil {
+		return
+	}
 
 	// Save the updated state data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -305,6 +320,11 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	err = updateService(ctx, plan, resp, api, state)
+	if err != nil {
+		return
+	}
+
+	err = updateSettings(ctx, plan, resp.Diagnostics, api)
 	if err != nil {
 		return
 	}
@@ -478,6 +498,92 @@ func createService(
 	return *id, version, nil
 }
 
+func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {
+	serviceID := state.ID.ValueString()
+	serviceVersion := int32(state.Version.ValueInt64())
+
+	clientReq := api.Client.SettingsAPI.GetServiceSettings(api.ClientCtx, serviceID, serviceVersion)
+
+	readErr := errors.New("failed to read service settings")
+
+	clientResp, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly SettingsAPI.GetServiceSettings error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read service settings, got error: %s", err))
+		return readErr
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return readErr
+	}
+
+	if ptr, ok := clientResp.GetGeneralDefaultHostOk(); ok {
+		// WARNING: This block of code doesn't work as you might expect because of the Fastly API.
+		//
+		// The Fastly API always returns an empty string (and not null). This means
+		// we get a conflict with the state file, as it stores the value as <null>.
+		//
+		// To avoid a "plan was not empty" test error, because Terraform sees the
+		// value was <null> in the state but now is an empty string, we need to
+		// check the state to see if the comment was originally <null> and to force
+		// setting it back to null rather than using the empty string from the API.
+		//
+		// Ideally the Fastly API would return null or omit the field so the API
+		// client could handle whether the value returned was null.
+		if !state.DefaultHost.IsNull() {
+			state.DefaultHost = types.StringValue(*ptr)
+		}
+	}
+	if ptr, ok := clientResp.GetGeneralDefaultTTLOk(); ok {
+		state.DefaultTTL = types.Int64Value(int64(*ptr))
+	}
+	if ptr, ok := clientResp.GetGeneralStaleIfErrorOk(); ok {
+		state.StaleIfError = types.BoolValue(*ptr)
+	}
+	if ptr, ok := clientResp.GetGeneralStaleIfErrorTTLOk(); ok {
+		state.StaleIfErrorTTL = types.Int64Value(int64(*ptr))
+	}
+
+	return nil
+}
+
+func updateSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {
+	serviceID := plan.ID.ValueString()
+	serviceVersion := int32(plan.Version.ValueInt64())
+
+	clientReq := api.Client.SettingsAPI.UpdateServiceSettings(api.ClientCtx, serviceID, serviceVersion)
+
+	if !plan.DefaultHost.IsNull() {
+		clientReq.GeneralDefaultHost(plan.DefaultHost.ValueString())
+	}
+	if !plan.DefaultTTL.IsNull() {
+		clientReq.GeneralDefaultTTL(int32(plan.DefaultTTL.ValueInt64()))
+	}
+	if !plan.StaleIfError.IsNull() {
+		clientReq.GeneralStaleIfError(plan.StaleIfError.ValueBool())
+	}
+	if !plan.StaleIfErrorTTL.IsNull() {
+		clientReq.GeneralStaleIfErrorTTL(int32(plan.StaleIfErrorTTL.ValueInt64()))
+	}
+
+	createErr := errors.New("failed to set service settings")
+
+	_, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly SettingsAPI.UpdateServiceSettings error", map[string]any{"http_resp": httpResp})
+		diags.AddError("Client Error", fmt.Sprintf("Unable to set service settings, got error: %s", err))
+		return createErr
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		diags.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		return createErr
+	}
+
+	return nil
+}
+
 func determineChanges(
 	ctx context.Context,
 	nestedResources []interfaces.Resource,
@@ -548,7 +654,6 @@ func updateService(
 ) error {
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
 	// When cloning (see above) we need to call UpdateServiceVersion.
-
 	clientReq := api.Client.ServiceAPI.UpdateService(api.ClientCtx, plan.ID.ValueString())
 	if !plan.Comment.Equal(state.Comment) {
 		clientReq.Comment(plan.Comment.ValueString())
