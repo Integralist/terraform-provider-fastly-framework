@@ -8,6 +8,8 @@ import (
 )
 
 // Service returns the common schema attributes between VCL/Compute services.
+//
+// NOTE: Some optional attributes are also 'computed' so we can set a default.
 func Service() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"activate": schema.BoolAttribute{
@@ -19,7 +21,6 @@ func Service() map[string]schema.Attribute {
 			},
 		},
 		"comment": schema.StringAttribute{
-			// NOTE: This is marked computed so provider can set a default.
 			Computed:            true,
 			MarkdownDescription: "Description field for the service. Default `Managed by Terraform`",
 			Optional:            true,

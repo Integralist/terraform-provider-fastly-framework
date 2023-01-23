@@ -57,11 +57,11 @@ type ServiceVCLResource struct {
 	client *fastly.APIClient
 	// clientCtx contains the user's API token.
 	clientCtx context.Context
-	// nestedResources is a list of nested nestedResources.
+	// nestedResources is a list of resources within the service resource.
 	//
-	// NOTE: Terraform doesn't have a concept of nested nestedResources.
+	// NOTE: Terraform doesn't have a concept of 'nested' resources.
 	// We're using this terminology because it makes more sense for Fastly.
-	// As our 'nested nestedResources' are actually just nested 'attributes'.
+	// As our nested resources are actually just nested 'attributes'.
 	// https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#nested-attributes
 	nestedResources []interfaces.Resource
 }
@@ -72,6 +72,8 @@ func (r *ServiceVCLResource) Metadata(_ context.Context, req resource.MetadataRe
 }
 
 // Schema should return the schema for this resource.
+//
+// NOTE: Some optional attributes are also 'computed' so we can set a default.
 func (r *ServiceVCLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := schemas.Service()
 
@@ -531,6 +533,10 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 		//
 		// Ideally the Fastly API would return null or omit the field so the API
 		// client could handle whether the value returned was null.
+		//
+		// FIXME: How should we handle 'default values'?
+		// I presume we need to assign a default via attribute schema to avoid
+		// conflicts within Terraform plan diffs.
 		if !state.DefaultHost.IsNull() {
 			state.DefaultHost = types.StringValue(*ptr)
 		}
@@ -590,11 +596,6 @@ func determineChanges(
 	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) (resourcesChanged bool, err error) {
-	// IMPORTANT: We use a counter instead of a bool to avoid unsetting.
-	// Because we range over multiple nested attributes, if we had used a boolean
-	// then we might find the last item in the loop had no resourcesChanged and we would
-	// incorrectly set the boolean to false when prior items DID have resourcesChanged.
-
 	for _, nestedResource := range nestedResources {
 		// NOTE: InspectChanges mutates the nested resource.
 		// The nestedResource struct has Added, Deleted, Modified fields.
