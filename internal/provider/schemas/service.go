@@ -47,7 +47,7 @@ func Service() map[string]schema.Attribute {
 				},
 			},
 		},
-		"force": schema.BoolAttribute{
+		"force_destroy": schema.BoolAttribute{
 			MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`",
 			Optional:            true,
 		},

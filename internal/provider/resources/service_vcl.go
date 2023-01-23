@@ -361,7 +361,7 @@ func (r *ServiceVCLResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	if (state.Force.ValueBool() || state.Reuse.ValueBool()) && state.Activate.ValueBool() {
+	if (state.ForceDestroy.ValueBool() || state.Reuse.ValueBool()) && state.Activate.ValueBool() {
 		clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -445,7 +445,7 @@ func (r *ServiceVCLResource) ImportState(ctx context.Context, req resource.Impor
 func (r ServiceVCLResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		resourcevalidator.Conflicting(
-			path.MatchRoot("force"),
+			path.MatchRoot("force_destroy"),
 			path.MatchRoot("reuse"),
 		),
 	}

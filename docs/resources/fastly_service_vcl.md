@@ -29,7 +29,7 @@ The Service resource requires a domain name configured to direct traffic to the 
 - `comment` (String) Description field for the service. Default `Managed by Terraform`
 - `default_host` (String) The default hostname
 - `default_ttl` (Number) The default Time-to-live (TTL) for requests
-- `force` (Boolean) Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`
+- `force_destroy` (Boolean) Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`
 - `reuse` (Boolean) Services that are active cannot be destroyed. If set to `true` a service Terraform intends to destroy will instead be deactivated (allowing it to be reused by importing it into another Terraform project). If `false`, attempting to destroy an active service will cause an error. Default `false`
 - `stale_if_error` (Boolean) Enables serving a stale object if there is an error
 - `stale_if_error_ttl` (Number) The default time-to-live (TTL) for serving the stale object for the version

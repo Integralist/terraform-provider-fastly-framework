@@ -34,11 +34,11 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 	domainName := serviceName
 
-	// Create a service with two domains (force = false).
+	// Create a service with two domains (force_destroy = false).
 	configCreate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       name = "%s"
-      force = %t
+      force_destroy = %t
 
       domains = [
         {
@@ -51,7 +51,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
     }
     `, serviceName, false, domainName, domainName)
 
-	// Update the first domain's comment + second domain's name (force = true).
+	// Update the first domain's comment + second domain's name (force_destroy = true).
 	// We also change the order of the domains so the second is now first.
 	// This should result in:
 	//    - One domain being "added"    (tpff-2-updated).
@@ -60,7 +60,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	configUpdate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       name = "%s"
-      force = %t
+      force_destroy = %t
 
       domains = [
         {
@@ -82,31 +82,31 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			{
 				Config: configCreate,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.#", "2"),
 				),
 			},
 			// Update and Read testing
 			{
-				// IMPORTANT: Must set `force` to `true` so we can delete service.
+				// IMPORTANT: Must set `force_destroy` to `true` so we can delete service.
 				Config: configUpdate,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force", "true"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "true"),
 				),
 			},
 			// ImportState testing
 			//
 			// IMPORTANT: Import verification must happen last.
-			// This is because the `force` attribute is determined by user config and
-			// can't be imported. If we had this test before the 'update' test where
-			// we set `force` to `true`, then we'd use the last known state of
-			// `false` and that would prevent the delete operation from succeeding.
+			// This is because the `force_destroy` attribute is determined by user
+			// config and can't be imported. If we had this test before the 'update'
+			// test where we set `force` to `true`, then we'd use the last known state
+			// of `false` and that would prevent the delete operation from succeeding.
 			{
 				ResourceName:            "fastly_service_vcl.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"activate", "force", "reuse"},
+				ImportStateVerifyIgnore: []string{"activate", "force_destroy", "reuse"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},
