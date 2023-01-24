@@ -33,8 +33,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		// TODO: Update this string with the published name of your provider.
-		Address: "registry.terraform.io/integralist/fastly",
+		Address: "registry.terraform.io/integralist/fastly-framework",
 		Debug:   debug,
 	}
 
