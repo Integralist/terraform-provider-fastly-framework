@@ -20,7 +20,7 @@ The Service resource requires a domain name configured to direct traffic to the 
 
 ### Required
 
-- `domains` (Attributes Set) (see [below for nested schema](#nestedatt--domains))
+- `domains` (Attributes Map) Each key within the map should be a domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource (see [below for nested schema](#nestedatt--domains))
 - `name` (String) The unique name for the service to create
 
 ### Optional
@@ -43,16 +43,8 @@ The Service resource requires a domain name configured to direct traffic to the 
 <a id="nestedatt--domains"></a>
 ### Nested Schema for `domains`
 
-Required:
-
-- `name` (String) The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource
-
 Optional:
 
 - `comment` (String) An optional comment about the domain
-
-Read-Only:
-
-- `id` (String) Unique identifier used by the provider to determine changes within a nested set type
 
 

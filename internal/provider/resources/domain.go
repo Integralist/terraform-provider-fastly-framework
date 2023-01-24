@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,11 +24,11 @@ func NewDomainResource() interfaces.Resource {
 // DomainResource represents a Fastly entity.
 type DomainResource struct {
 	// Added represents any new resources.
-	Added []models.Domain
+	Added map[string]models.Domain
 	// Deleted represents any deleted resources.
-	Deleted []models.Domain
+	Deleted map[string]models.Domain
 	// Modified represents any modified resources.
-	Modified []models.Domain
+	Modified map[string]models.Domain
 	// Changed indicates if the resource has changes.
 	Changed bool
 }
@@ -44,12 +43,11 @@ func (r *DomainResource) Create(
 	api helpers.API,
 	serviceData *data.Service,
 ) error {
-	var domains []models.Domain
+	var domains map[string]models.Domain
 	req.Plan.GetAttribute(ctx, path.Root("domains"), &domains)
 
-	for i := range domains {
-		domain := &domains[i]
-		if err := create(ctx, domain, api, serviceData, resp); err != nil {
+	for domainName, domainData := range domains {
+		if err := create(ctx, domainName, domainData, api, serviceData, resp); err != nil {
 			return err
 		}
 	}
@@ -69,7 +67,8 @@ func (r *DomainResource) Read(
 	api helpers.API,
 	serviceData *data.Service,
 ) error {
-	var domains []models.Domain
+	var domains map[string]models.Domain
+	// TODO: Do we need to take address of map when getting/setting attributes?
 	req.State.GetAttribute(ctx, path.Root("domains"), &domains)
 
 	remoteDomains, err := read(ctx, domains, api, serviceData, resp)
@@ -104,20 +103,20 @@ func (r *DomainResource) Update(
 	// We should make them a single type (as the API is one endpoint).
 	// Then we can expose a `dynamic` boolean attribute to control the type.
 
-	for _, domain := range r.Deleted {
-		if err := updateDeleted(ctx, api, serviceData, domain, resp); err != nil {
+	for domainName := range r.Deleted {
+		if err := updateDeleted(ctx, api, serviceData, domainName, resp); err != nil {
 			return err
 		}
 	}
 
-	for _, domain := range r.Added {
-		if err := updateAdded(ctx, api, serviceData, domain, resp); err != nil {
+	for domainName, domainData := range r.Added {
+		if err := updateAdded(ctx, api, serviceData, domainName, domainData, resp); err != nil {
 			return err
 		}
 	}
 
-	for _, domain := range r.Modified {
-		if err := updateModified(ctx, api, serviceData, domain, resp); err != nil {
+	for domainName, domainData := range r.Modified {
+		if err := updateModified(ctx, api, serviceData, domainName, domainData, resp); err != nil {
 			return err
 		}
 	}
@@ -138,8 +137,8 @@ func (r *DomainResource) InspectChanges(
 	_ helpers.API,
 	_ *data.Service,
 ) (bool, error) {
-	var planDomains []models.Domain
-	var stateDomains []models.Domain
+	var planDomains map[string]models.Domain
+	var stateDomains map[string]models.Domain
 
 	req.Plan.GetAttribute(ctx, path.Root("domains"), &planDomains)
 	req.State.GetAttribute(ctx, path.Root("domains"), &stateDomains)
@@ -167,20 +166,13 @@ func (r *DomainResource) HasChanges() bool {
 // create is the common behaviour for creating this resource.
 func create(
 	ctx context.Context,
-	domain *models.Domain,
+	domainName string,
+	domainData models.Domain,
 	api helpers.API,
 	service *data.Service,
 	resp *resource.CreateResponse,
 ) error {
 	createErr := errors.New("failed to create domain resource")
-
-	if domain.ID.IsUnknown() {
-		// NOTE: We create a consistent hash of the domain name for the ID.
-		// Originally I used github.com/google/uuid but realised it would be more
-		// appropriate to use a hash of the domain name.
-		digest := sha256.Sum256([]byte(domain.Name.ValueString()))
-		domain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-	}
 
 	// TODO: Check if the version we have is correct.
 	// e.g. should it be latest 'active' or just latest version?
@@ -192,12 +184,10 @@ func create(
 		service.Version,
 	)
 
-	if !domain.Comment.IsNull() {
-		clientReq.Comment(domain.Comment.ValueString())
-	}
+	clientReq.Name(domainName)
 
-	if !domain.Name.IsNull() {
-		clientReq.Name(domain.Name.ValueString())
+	if !domainData.Comment.IsNull() {
+		clientReq.Comment(domainData.Comment.ValueString())
 	}
 
 	_, httpResp, err := clientReq.Execute()
@@ -217,11 +207,11 @@ func create(
 
 func read(
 	ctx context.Context,
-	domains []models.Domain,
+	stateDomains map[string]models.Domain,
 	api helpers.API,
 	service *data.Service,
 	resp *resource.ReadResponse,
-) ([]models.Domain, error) {
+) (map[string]models.Domain, error) {
 	clientReq := api.Client.DomainAPI.ListDomains(
 		api.ClientCtx,
 		service.ID,
@@ -240,15 +230,11 @@ func read(
 		return nil, err
 	}
 
-	var remoteDomains []models.Domain
+	remoteDomains := make(map[string]models.Domain)
 
-	for _, domain := range clientResp {
-		domainName := domain.GetName()
-		digest := sha256.Sum256([]byte(domainName))
-
-		sd := models.Domain{
-			ID: types.StringValue(fmt.Sprintf("%x", digest)),
-		}
+	for _, remoteDomain := range clientResp {
+		remoteDomainName := remoteDomain.GetName()
+		remoteDomainData := models.Domain{}
 
 		// NOTE: We call the Ok variant of the API so we can check if value was set.
 		// WARNING: The code doesn't work as you might expect because of the Fastly API.
@@ -265,20 +251,20 @@ func read(
 		// client could handle whether the value returned was null. So I've left the
 		// conditional logic here but have added to the else statement additional
 		// logic for working around the issue with the Fastly API response.
-		if v, ok := domain.GetCommentOk(); ok {
+		if v, ok := remoteDomain.GetCommentOk(); ok {
 			// Set comment to whatever is returned by the API (could be an empty
 			// string and that might be because the user set that explicitly or it
 			// could be because it was never set and the API is just returning an
 			// empty string as a default value).
-			sd.Comment = types.StringValue(*v)
+			remoteDomainData.Comment = types.StringValue(*v)
 
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
 			// See the above WARNING for the details.
-			for _, stateDomain := range domains {
-				if stateDomain.Name.ValueString() == domainName {
-					if stateDomain.Comment.IsNull() {
-						sd.Comment = types.StringNull()
+			for stateDomainName, stateDomainData := range stateDomains {
+				if stateDomainName == remoteDomainName {
+					if stateDomainData.Comment.IsNull() {
+						remoteDomainData.Comment = types.StringNull()
 					}
 				}
 			}
@@ -301,20 +287,22 @@ func read(
 			// domain comment (they'll more likely just omit the attribute). So we'll
 			// presume that if we're in an 'import' scenario and the comment value is
 			// an empty string, that we should set the comment attribute to null.
-			if len(domains) == 0 && *v == "" {
-				sd.Comment = types.StringNull()
+			if len(stateDomains) == 0 && *v == "" {
+				remoteDomainData.Comment = types.StringNull()
 			}
 		} else {
-			sd.Comment = types.StringNull()
+			remoteDomainData.Comment = types.StringNull()
 		}
 
-		if v, ok := domain.GetNameOk(); !ok {
-			sd.Name = types.StringNull()
-		} else {
-			sd.Name = types.StringValue(*v)
+		// NOTE: It's highly unlikely a domain would have no name.
+		// But I'd rather be safe than sorry and try to set a map key to "".
+		if remoteDomainName == "" {
+			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+			resp.Diagnostics.AddError("API Error", "No domain name set in API response")
+			return nil, err
 		}
 
-		remoteDomains = append(remoteDomains, sd)
+		remoteDomains[remoteDomainName] = remoteDomainData
 	}
 
 	return remoteDomains, nil
@@ -324,10 +312,10 @@ func updateDeleted(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domain models.Domain,
+	domainName string,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainName)
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
@@ -348,17 +336,15 @@ func updateAdded(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domain models.Domain,
+	domainName string,
+	domainData models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
 	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, serviceData.ID, serviceData.Version)
+	clientReq.Name(domainName)
 
-	if !domain.Comment.IsNull() {
-		clientReq.Comment(domain.Comment.ValueString())
-	}
-
-	if !domain.Name.IsNull() {
-		clientReq.Name(domain.Name.ValueString())
+	if !domainData.Comment.IsNull() {
+		clientReq.Comment(domainData.Comment.ValueString())
 	}
 
 	_, httpResp, err := clientReq.Execute()
@@ -380,13 +366,14 @@ func updateModified(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domain models.Domain,
+	domainName string,
+	domainData models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domain.Name.ValueString())
+	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainName)
 
-	if !domain.Comment.IsNull() {
-		clientReq.Comment(domain.Comment.ValueString())
+	if !domainData.Comment.IsNull() {
+		clientReq.Comment(domainData.Comment.ValueString())
 	}
 
 	// NOTE: We don't bother to check/update the domain's Name field.
@@ -409,32 +396,31 @@ func updateModified(
 	return nil
 }
 
-// NOTE: We have to manually track each resource in a nested set attribute.
-// For domains this means computing an ID for each domain, then calculating
-// whether a domain has been added, deleted or modified. If any of those
-// conditions are met, then we must clone the current service version.
-func inspectChanges(planDomains, stateDomains []models.Domain) (changed bool, added, deleted, modified []models.Domain) {
-	for i := range planDomains {
-		// NOTE: We need a pointer to the resource struct so we can set an ID.
-		planDomain := &planDomains[i]
+// MODIFIED:
+// If a plan domain name matches a state domain name, then it's been modified.
+//
+// ADDED:
+// If a plan domain name doesn't exist in the state, then it's a new domain.
+//
+// DELETED:
+// If a state domain name doesn't exist in the plan, then it's a deleted domain.
+//
+// TODO: Figure out, now we're using a map type, can we abstract this logic.
+// So it's useful across multiple resources (as long as they're all maps too).
+func inspectChanges(planDomains, stateDomains map[string]models.Domain) (changed bool, added, deleted, modified map[string]models.Domain) {
+	added = make(map[string]models.Domain)
+	modified = make(map[string]models.Domain)
+	deleted = make(map[string]models.Domain)
 
-		// ID is a computed value so we need to regenerate it from the domain name.
-		if planDomain.ID.IsUnknown() {
-			digest := sha256.Sum256([]byte(planDomain.Name.ValueString()))
-			planDomain.ID = types.StringValue(fmt.Sprintf("%x", digest))
-		}
-
+	for planDomainName, planDomainData := range planDomains {
 		var foundDomain bool
-		for _, stateDomain := range stateDomains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+
+		for stateDomainName, stateDomainData := range stateDomains {
+			if planDomainName == stateDomainName {
 				foundDomain = true
-				// NOTE: It's not possible for the domain's Name field to not match.
-				// This is because we first check the ID field matches, and that is
-				// based on a hash of the domain name. Because of this we don't bother
-				// checking if planDomain.Name and stateDomain.Name are not equal.
-				if !planDomain.Comment.Equal(stateDomain.Comment) {
+				if !planDomainData.Comment.Equal(stateDomainData.Comment) {
 					changed = true
-					modified = append(modified, *planDomain)
+					modified[planDomainName] = planDomainData
 				}
 				break
 			}
@@ -442,14 +428,14 @@ func inspectChanges(planDomains, stateDomains []models.Domain) (changed bool, ad
 
 		if !foundDomain {
 			changed = true
-			added = append(added, *planDomain)
+			added[planDomainName] = planDomainData
 		}
 	}
 
-	for _, stateDomain := range stateDomains {
+	for stateDomainName, stateDomainData := range stateDomains {
 		var foundDomain bool
-		for _, planDomain := range planDomains {
-			if planDomain.ID.ValueString() == stateDomain.ID.ValueString() {
+		for planDomainName := range planDomains {
+			if planDomainName == stateDomainName {
 				foundDomain = true
 				break
 			}
@@ -457,7 +443,7 @@ func inspectChanges(planDomains, stateDomains []models.Domain) (changed bool, ad
 
 		if !foundDomain {
 			changed = true
-			deleted = append(deleted, stateDomain)
+			deleted[stateDomainName] = stateDomainData
 		}
 	}
 
