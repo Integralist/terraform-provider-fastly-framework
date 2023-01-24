@@ -4,6 +4,10 @@
 
 The Fastly Terraform Provider interacts with most facets of the [Fastly API](https://developer.fastly.com/reference/api) and uses the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework).
 
+## Using the provider
+
+Consumers should refer to the [EXAMPLES](./examples/)
+
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
@@ -19,10 +23,6 @@ The Fastly Terraform Provider interacts with most facets of the [Fastly API](htt
 go install
 ```
 
-## Using the provider
-
-TODO
-
 ## Developing the Provider
 
 We document issues with the provider in [`DEVELOPMENT.md`](./DEVELOPMENT.md).
@@ -30,6 +30,8 @@ We document issues with the provider in [`DEVELOPMENT.md`](./DEVELOPMENT.md).
 If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
 
 To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+
+To manually test the provider (e.g. using the provider with your own Terraform configuration), run `make build`, which runs `go install` but also produces a `~/.terraformrc` that enables the Terraform CLI to use the local build version.
 
 To generate or update documentation, run `go generate` (or `make docs`).
 
