@@ -76,7 +76,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				Config: configCreate,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
-					// resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.#", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.%", "2"),
 				),
 			},
 			// Update and Read testing
