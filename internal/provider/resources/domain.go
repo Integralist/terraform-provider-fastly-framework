@@ -68,7 +68,6 @@ func (r *DomainResource) Read(
 	serviceData *data.Service,
 ) error {
 	var domains map[string]models.Domain
-	// TODO: Do we need to take address of map when getting/setting attributes?
 	req.State.GetAttribute(ctx, path.Root("domains"), &domains)
 
 	remoteDomains, err := read(ctx, domains, api, serviceData, resp)
@@ -174,10 +173,6 @@ func create(
 ) error {
 	createErr := errors.New("failed to create domain resource")
 
-	// TODO: Check if the version we have is correct.
-	// e.g. should it be latest 'active' or just latest version?
-	// It should depend on `activate` field but also whether the service pre-exists.
-	// The service might exist if it was imported or a secondary config run.
 	clientReq := api.Client.DomainAPI.CreateDomain(
 		api.ClientCtx,
 		service.ID,
