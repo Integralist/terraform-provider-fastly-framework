@@ -18,4 +18,4 @@ BREAKING CHANGES:
 - `fastly_service_vcl`: 
   - `active_version` renamed to `last_active`
   - `cloned_version` renamed to `version`
-  - `domain` renamed to `domains` and is now a nested attribute.
+  - `domain` renamed to `domains` and is now a nested attribute of a 'map' type.
