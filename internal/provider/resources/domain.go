@@ -290,7 +290,7 @@ func read(
 		}
 
 		// NOTE: It's highly unlikely a domain would have no name.
-		// But I'd rather be safe than sorry and try to set a map key to "".
+		// But safer to just avoid accidentally setting a map key to an empty string.
 		if remoteDomainName == "" {
 			tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 			resp.Diagnostics.AddError("API Error", "No domain name set in API response")
