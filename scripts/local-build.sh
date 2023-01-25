@@ -23,8 +23,9 @@ EXAMPLE:
 terraform {
   required_providers {
     fastly = {
-      # The compiled binary name has the format `terraform-provider-<NAME>`
-      # So the 'fastly-framework' aligns with this pattern.
+      # The compiled binary name is `terraform-provider-fastly-framework`.
+      # The name has the format `terraform-provider-<NAME>`
+      # So the 'fastly-framework' in the source below aligns with this pattern.
       source = "integralist/fastly-framework"
     }
   }
