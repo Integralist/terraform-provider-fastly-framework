@@ -28,21 +28,14 @@ func Service() map[string]schema.Attribute {
 				helpers.StringDefaultModifier{Default: "Managed by Terraform"},
 			},
 		},
-		"domains": schema.SetNestedAttribute{
-			Required: true,
+		"domains": schema.MapNestedAttribute{
+			MarkdownDescription: "Each key within the map should be a domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
+			Required:            true,
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: map[string]schema.Attribute{
 					"comment": schema.StringAttribute{
 						MarkdownDescription: "An optional comment about the domain",
 						Optional:            true,
-					},
-					"id": schema.StringAttribute{
-						Computed:            true,
-						MarkdownDescription: "Unique identifier used by the provider to determine changes within a nested set type",
-					},
-					"name": schema.StringAttribute{
-						MarkdownDescription: "The domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
-						Required:            true,
 					},
 				},
 			},

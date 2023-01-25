@@ -23,8 +23,20 @@ EXAMPLE:
 terraform {
   required_providers {
     fastly = {
-      # The compiled binary name has the format `terraform-provider-<NAME>`
-      # So the 'fastly-framework' aligns with this pattern.
+      # Terraform uses the following pattern to identify a provider:
+      # terraform-provider-<NAME>
+      #
+      # When specifying a provider as a dependency the 'source' must contain the
+      # username and the provider name:
+      # source = "<USERNAME>/<PROVIDER_NAME>"
+      #
+      # This aligns with the Terraform registry URL:
+      # https://registry.terraform.io/providers/<USERNAME>/<PROVIDER_NAME>
+      #
+      # Our provider name is 'fastly-framework'.
+      # So the Terraform CLI looks for a binary ending with 'fastly-framework'.
+      # We compile a binary named `terraform-provider-fastly-framework`.
+      # Hence Terraform CLI knows to use that binary.
       source = "integralist/fastly-framework"
     }
   }

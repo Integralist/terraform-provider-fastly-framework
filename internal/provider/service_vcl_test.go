@@ -40,14 +40,10 @@ func TestAccResourceServiceVCL(t *testing.T) {
       name = "%s"
       force_destroy = %t
 
-      domains = [
-        {
-          name = "%s-tpff-1.integralist.co.uk"
-        },
-        {
-          name = "%s-tpff-2.integralist.co.uk"
-        },
-      ]
+      domains = {
+        "%s-tpff-1.integralist.co.uk" = {},
+        "%s-tpff-2.integralist.co.uk" = {},
+      }
     }
     `, serviceName, false, domainName, domainName)
 
@@ -62,15 +58,12 @@ func TestAccResourceServiceVCL(t *testing.T) {
       name = "%s"
       force_destroy = %t
 
-      domains = [
-        {
-          name = "%s-tpff-2-updated.integralist.co.uk"
-        },
-        {
+      domains = {
+        "%s-tpff-2-updated.integralist.co.uk" = {},
+        "%s-tpff-1.integralist.co.uk" = {
           comment = "a random updated comment"
-          name = "%s-tpff-1.integralist.co.uk"
         },
-      ]
+      }
     }
     `, serviceName, true, domainName+"-updated", domainName)
 
@@ -83,7 +76,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				Config: configCreate,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.#", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.%", "2"),
 				),
 			},
 			// Update and Read testing

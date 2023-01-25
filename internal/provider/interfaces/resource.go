@@ -46,8 +46,6 @@ type Resource interface {
 		api helpers.API,
 		serviceData *data.Service,
 	) error
-	// HasChanges indicates if the nested resource contains configuration changes.
-	HasChanges() bool
 	// InspectChanges checks for configuration changes and persists to data model.
 	InspectChanges(
 		ctx context.Context,
@@ -56,4 +54,6 @@ type Resource interface {
 		api helpers.API,
 		serviceData *data.Service,
 	) (bool, error)
+	// HasChanges indicates if the nested resource contains configuration changes.
+	HasChanges() bool
 }

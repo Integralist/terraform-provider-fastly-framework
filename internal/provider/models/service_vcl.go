@@ -14,8 +14,8 @@ type ServiceVCL struct {
 	DefaultHost types.String `tfsdk:"default_host"`
 	// DefaultTTL is the default time-to-live (TTL) for the version.
 	DefaultTTL types.Int64 `tfsdk:"default_ttl"`
-	// Domains is a nested set attribute for the domain(s) associated with the service.
-	Domains []Domain `tfsdk:"domains"`
+	// Domains is a nested map attribute for the domain(s) associated with the service.
+	Domains map[string]Domain `tfsdk:"domains"`
 	// ForceDestroy ensures a service will be fully deleted upon `terraform destroy`.
 	ForceDestroy types.Bool `tfsdk:"force_destroy"`
 	// ID is a unique ID for the service.
