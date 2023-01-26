@@ -23,7 +23,7 @@ The original Fastly Terraform provider, which used the Terraform v2 SDK, was abl
 
 This was because Terraform presumed applying a 'plan' wholesale via its API was best. In practice, not all APIs work like this and instead some require modified fields. 
 
-The result of this is that a resource now needs to identify changes itself but anything other than simple field comparisons are tricky. An example of this within our provider is identifying changes to domains. The Fastly API does not return an 'ID' for a domain, and so we have to generate one ourselves as a computed attribute and use that to track changes.
+The result of this is that a resource now needs to identify changes itself but anything other than simple field comparisons are tricky. An example of this within our provider is identifying changes to domains. The Fastly API does not return an 'ID' for a domain, and so unless we use the correct type (we do now, we use `map` where we previously used a `set`) we have to generate one ourselves as a computed attribute and use that to track changes.
 
 I raised a dicussion on the HashiCorp forum but the responses didn't reveal anything useful:
 https://discuss.hashicorp.com/t/how-to-compare-changes-for-nested-block-with-new-framework/48333/11
@@ -39,9 +39,9 @@ Go's generics being too restrictive and the Terraform Plugin Framework leaning m
 
 If we were to marshal a model struct into a map, we still need to know the underlying Terraform types so that we could type assert back to them to utilise their associated APIs, and because Terraform assigns these types to struct fields, it makes reasoning about the map keys comparison harder as well. 
 
-Some resources, such as domains, need custom logic (like calculating a hash of a field for a computed attribute) to execute as part of the change inspection and the fields used for comparison are typically unique as well (e.g. with a domain, we use the dynamically computed hash as our comparison). This makes a generic solution difficult.
+Some resources, such as domains, _originally_ needed custom logic (like calculating a hash of a field for a computed attribute) to execute as part of the change inspection, and the fields used for comparison are typically unique as well (e.g. with a domain, we would use the dynamically computed hash as our comparison). This makes a generic solution difficult. I've since moved the `domain` resource from a set to a map and so if all of our nested resources are a 'map' it might make implementing a generic solution easier.
 
-It might still be possible but it requires consideration. For reference, here is the original provider's diffing logic:
+Basically, it might still be possible but it requires consideration. For reference, here is the original provider's diffing logic:
 https://github.com/fastly/terraform-provider-fastly/blob/d714f62c458cfd0425decc0dca3aa96297fc6063/fastly/diff.go
 
 ## Unexpected diffs
@@ -54,4 +54,4 @@ Any change, regardless of size, will cause a new set hash. A Terraform plan woul
 
 To avoid unexpected diffs we should look to move away from using a set wherever possible. 
 
-The `domain` nested attribute is a [`SetNestedAttribute`](https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#setnestedattribute) type. We need to check whether the unexpected diff issue is still present and if so consider switching to a [`MapNestedAttribute`](https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#mapnestedattribute).
+As an example, the `domain` nested attribute is now a [`MapNestedAttribute`](https://developer.hashicorp.com/terraform/plugin/framework/handling-data/attributes#mapnestedattribute) type and avoids the diff issue that sets introduce.
