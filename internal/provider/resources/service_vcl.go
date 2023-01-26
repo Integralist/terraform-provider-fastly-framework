@@ -153,7 +153,7 @@ func (r *ServiceVCLResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// NOTE: There is no 'create service settings' API, only 'update'.
 	// So even though we're inside the CREATE function, we call updateSettings().
-	err = updateSettings(ctx, plan, resp.Diagnostics, api)
+	err = updateServiceSettings(ctx, plan, resp.Diagnostics, api)
 	if err != nil {
 		return
 	}
@@ -263,13 +263,8 @@ func (r *ServiceVCLResource) Read(ctx context.Context, req resource.ReadRequest,
 // Update is called to update the state of the resource.
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
-//
-// NOTE: The service attributes (Name, Comment) are 'versionless'.
-// Other nested attributes will require a new service version.
 func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// NOTE: The determineChanges() function will mutate the plan model data.
-	// This happens from within nestedResources.InspectChanges().
-	resourcesChanged, err := determineChanges(ctx, r.nestedResources, &req, resp)
+	nestedResourcesChanged, err := determineChangesInNestedResources(ctx, r.nestedResources, &req, resp)
 	if err != nil {
 		return
 	}
@@ -299,12 +294,13 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		ClientCtx: r.clientCtx,
 	}
 
-	if resourcesChanged {
-		// IMPORTANT: We're shadowing the parent scope's serviceVersion variable.
-		serviceVersion, err = cloneService(ctx, plan, resp, api, serviceID, serviceVersion)
+	if nestedResourcesChanged {
+		clonedServiceVersion, err := cloneService(ctx, resp, api, serviceID, serviceVersion)
 		if err != nil {
 			return
 		}
+		plan.Version = types.Int64Value(int64(clonedServiceVersion))
+		serviceVersion = clonedServiceVersion
 	}
 
 	// IMPORTANT: nestedResources are expected to mutate the plan data.
@@ -321,20 +317,12 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 		}
 	}
 
-	err = updateService(ctx, plan, resp, api, state)
+	err = updateServiceSettings(ctx, plan, resp.Diagnostics, api)
 	if err != nil {
 		return
 	}
 
-	err = updateSettings(ctx, plan, resp.Diagnostics, api)
-	if err != nil {
-		return
-	}
-
-	// Save the planned changes into Terraform state.
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-
-	if resourcesChanged {
+	if nestedResourcesChanged {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -343,6 +331,16 @@ func (r *ServiceVCLResource) Update(ctx context.Context, req resource.UpdateRequ
 			return
 		}
 	}
+
+	// NOTE: The service attributes (Name, Comment) are 'versionless'.
+	// So we update them once the service itself has been activated.
+	err = updateServiceAttributes(ctx, plan, resp, api, state)
+	if err != nil {
+		return
+	}
+
+	// Save the planned changes into Terraform state.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
 	tflog.Trace(ctx, "Update", map[string]any{"state": fmt.Sprintf("%+v", plan)})
 }
@@ -554,7 +552,7 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 	return nil
 }
 
-func updateSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {
+func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
 
@@ -590,16 +588,13 @@ func updateSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Dia
 	return nil
 }
 
-func determineChanges(
+func determineChangesInNestedResources(
 	ctx context.Context,
 	nestedResources []interfaces.Resource,
 	req *resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) (resourcesChanged bool, err error) {
 	for _, nestedResource := range nestedResources {
-		// NOTE: InspectChanges mutates the nested resource.
-		// The nestedResource struct has Added, Deleted, Modified fields.
-		// These are used by the nestedResource.Update method (called later).
 		changed, err := nestedResource.InspectChanges(
 			ctx, req, resp, helpers.API{}, &data.Service{},
 		)
@@ -619,7 +614,6 @@ func determineChanges(
 
 func cloneService(
 	ctx context.Context,
-	plan *models.ServiceVCL,
 	resp *resource.UpdateResponse,
 	api helpers.API,
 	serviceID string,
@@ -632,21 +626,10 @@ func cloneService(
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
 		return 0, err
 	}
-	plan.Version = types.Int64Value(int64(clientResp.GetNumber()))
-
-	// TODO: Figure out what this API does and why we call it?
-	clientUpdateServiceVersionReq := api.Client.VersionAPI.UpdateServiceVersion(api.ClientCtx, plan.ID.ValueString(), int32(plan.Version.ValueInt64()))
-	clientUpdateServiceVersionResp, httpResp, err := clientUpdateServiceVersionReq.Execute()
-	if err != nil {
-		tflog.Trace(ctx, "Fastly VersionAPI.UpdateServiceVersion error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service version, got error: %s", err))
-		return 0, err
-	}
-
-	return clientUpdateServiceVersionResp.GetNumber(), nil
+	return clientResp.GetNumber(), nil
 }
 
-func updateService(
+func updateServiceAttributes(
 	ctx context.Context,
 	plan *models.ServiceVCL,
 	resp *resource.UpdateResponse,
@@ -654,7 +637,6 @@ func updateService(
 	state *models.ServiceVCL,
 ) error {
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
-	// When cloning (see above) we need to call UpdateServiceVersion.
 	clientReq := api.Client.ServiceAPI.UpdateService(api.ClientCtx, plan.ID.ValueString())
 	if !plan.Comment.Equal(state.Comment) {
 		clientReq.Comment(plan.Comment.ValueString())

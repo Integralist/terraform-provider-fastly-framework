@@ -152,7 +152,6 @@ func (r *DomainResource) InspectChanges(
 		"changed":  r.Changed,
 	})
 
-	// NOTE: the inspectChanges() function mutates the plan domains with an ID.
 	req.Plan.SetAttribute(ctx, path.Root("domains"), &planDomains)
 
 	return r.Changed, nil
