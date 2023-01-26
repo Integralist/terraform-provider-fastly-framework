@@ -96,7 +96,8 @@ func (r *DomainResource) Update(
 	// delete the resource first before creating the new one, then the Fastly API
 	// will return an error and indicate that we have a conflict.
 	//
-	// FIXME: In the current Fastly provider there is a race condition bug.
+	// FIXME: VCL Snippets need to be consolidated into a single type.
+	// In the current Fastly provider there is a race condition bug.
 	// https://github.com/fastly/terraform-provider-fastly/issues/628#issuecomment-1372477539
 	// Which is based on the fact that snippets are two separate types.
 	// We should make them a single type (as the API is one endpoint).
@@ -373,8 +374,8 @@ func updateModified(
 
 	// NOTE: We don't bother to check/update the domain's Name field.
 	// This is because if the name of the domain has changed, then that means
-	// the a new domain will be added and the original domain deleted. Thus,
-	// we'll only have a domain as 'modified' if the Comment field was modified.
+	// a new domain will be added and the original domain deleted. Thus, we'll
+	// only have a domain as 'modified' if the Comment field was modified.
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
