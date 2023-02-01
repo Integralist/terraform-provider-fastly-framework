@@ -29,10 +29,14 @@ func Service() map[string]schema.Attribute {
 			},
 		},
 		"domains": schema.MapNestedAttribute{
-			MarkdownDescription: "Each key within the map should be a domain that this service will respond to. It is important to note that changing this attribute will delete and recreate the resource",
+			MarkdownDescription: "Each key within the map should be a unique identifier for the resources contained within",
 			Required:            true,
 			NestedObject: schema.NestedAttributeObject{
 				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						MarkdownDescription: "The domain that this Service will respond to. It is important to note that changing this attribute will delete and recreate the resource.",
+						Required:            true,
+					},
 					"comment": schema.StringAttribute{
 						MarkdownDescription: "An optional comment about the domain",
 						Optional:            true,

@@ -41,8 +41,12 @@ func TestAccResourceServiceVCL(t *testing.T) {
       force_destroy = %t
 
       domains = {
-        "%s-tpff-1.integralist.co.uk" = {},
-        "%s-tpff-2.integralist.co.uk" = {},
+        "example-1" = {
+          name = "%s-tpff-1.integralist.co.uk"
+        },
+        "example-2" = {
+          name = "%s-tpff-2.integralist.co.uk"
+        },
       }
     }
     `, serviceName, false, domainName, domainName)
@@ -51,7 +55,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	// We also change the order of the domains so the second is now first.
 	// This should result in:
 	//    - One domain being "added"    (tpff-2-updated).
-	//    - One domain being "modified" (tpff-1).
+	//    - One domain being "modified" (tpff-1 has a comment added).
 	//    - One domain being "deleted"  (tpff-2).
 	configUpdate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
@@ -59,13 +63,16 @@ func TestAccResourceServiceVCL(t *testing.T) {
       force_destroy = %t
 
       domains = {
-        "%s-tpff-2-updated.integralist.co.uk" = {},
-        "%s-tpff-1.integralist.co.uk" = {
+        "example-2" = {
+          name = "%s-tpff-2-updated.integralist.co.uk"
+        },
+        "example-1" = {
+          name = "%s-tpff-1.integralist.co.uk"
           comment = "a random updated comment"
         },
       }
     }
-    `, serviceName, true, domainName+"-updated", domainName)
+    `, serviceName, true, domainName, domainName)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -99,7 +106,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 				ResourceName:            "fastly_service_vcl.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"activate", "force_destroy", "reuse"},
+				ImportStateVerifyIgnore: []string{"activate", "domains", "force_destroy", "reuse"},
 			},
 			// Delete testing automatically occurs in TestCase
 		},

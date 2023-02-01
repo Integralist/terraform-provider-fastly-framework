@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
@@ -19,7 +20,7 @@ func (r *Resource) InspectChanges(
 	_ helpers.API,
 	_ *data.Service,
 ) (bool, error) {
-	var planDomains map[string]models.Domain
+	var planDomains map[string]*models.Domain // NOTE: Needs to mutate NamePast.
 	var stateDomains map[string]models.Domain
 
 	req.Plan.GetAttribute(ctx, path.Root("domains"), &planDomains)
@@ -45,53 +46,58 @@ func (r *Resource) HasChanges() bool {
 }
 
 // MODIFIED:
-// If a plan domain name matches a state domain name, then it's been modified.
+// If a plan domain ID matches a state domain ID, and a nested attribute has changed, then it's been modified.
 //
 // ADDED:
-// If a plan domain name doesn't exist in the state, then it's a new domain.
+// If a plan domain ID doesn't exist in the state, then it's a new domain.
 //
 // DELETED:
-// If a state domain name doesn't exist in the plan, then it's a deleted domain.
-//
-// TODO: Figure out, now we're using a map type, can we abstract this logic.
-// So it's useful across multiple resources (as long as they're all maps too).
-func changes(planDomains, stateDomains map[string]models.Domain) (changed bool, added, deleted, modified map[string]models.Domain) {
+// If a state domain ID doesn't exist in the plan, then it's a deleted domain.
+func changes(planDomains map[string]*models.Domain, stateDomains map[string]models.Domain) (changed bool, added, deleted, modified map[string]models.Domain) {
 	added = make(map[string]models.Domain)
 	modified = make(map[string]models.Domain)
 	deleted = make(map[string]models.Domain)
 
-	for planDomainName, planDomainData := range planDomains {
+	for planDomainID, planDomainData := range planDomains {
 		var foundDomain bool
 
-		for stateDomainName, stateDomainData := range stateDomains {
-			if planDomainName == stateDomainName {
+		for stateDomainID, stateDomainData := range stateDomains {
+			if planDomainID == stateDomainID {
 				foundDomain = true
 				if !planDomainData.Comment.Equal(stateDomainData.Comment) {
+					modified[planDomainID] = *planDomainData
 					changed = true
-					modified[planDomainName] = planDomainData
+				}
+				if !planDomainData.Name.Equal(stateDomainData.Name) {
+					// NOTE: We have to track the old state name for the API request.
+					// The Update API endpoint requires the old domain name be provided.
+					planDomainData.NamePast = types.StringValue(stateDomainData.Name.ValueString())
+
+					modified[planDomainID] = *planDomainData
+					changed = true
 				}
 				break
 			}
 		}
 
 		if !foundDomain {
+			added[planDomainID] = *planDomainData
 			changed = true
-			added[planDomainName] = planDomainData
 		}
 	}
 
-	for stateDomainName, stateDomainData := range stateDomains {
+	for stateDomainID, stateDomainData := range stateDomains {
 		var foundDomain bool
-		for planDomainName := range planDomains {
-			if planDomainName == stateDomainName {
+		for planDomainID := range planDomains {
+			if planDomainID == stateDomainID {
 				foundDomain = true
 				break
 			}
 		}
 
 		if !foundDomain {
+			deleted[stateDomainID] = stateDomainData
 			changed = true
-			deleted[stateDomainName] = stateDomainData
 		}
 	}
 
