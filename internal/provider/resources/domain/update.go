@@ -126,7 +126,6 @@ func modified(
 	if namePast != "" {
 		domainNameParam = namePast
 	}
-	// TODO: Does NamePast need to be reset?
 
 	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainNameParam)
 	if !domainData.Comment.IsNull() {
