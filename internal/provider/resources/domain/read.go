@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -66,7 +67,31 @@ func read(
 
 	for _, remoteDomain := range clientResp {
 		remoteDomainName := remoteDomain.GetName()
-		remoteDomainData := models.Domain{}
+		remoteDomainData := models.Domain{
+			Name: types.StringValue(remoteDomainName),
+		}
+
+		// NOTE: The API has no concept of an ID for a domain.
+		// The ID is arbitrarily chosen by the user and set in their config.
+		// The ID must be unique and is used as a key for accessing a domain.
+		var (
+			found          bool
+			remoteDomainID string
+		)
+
+		for stateDomainID, stateDomainData := range stateDomains {
+			if stateDomainData.Name.ValueString() == remoteDomainName {
+				remoteDomainID = stateDomainID
+				found = true
+			}
+		}
+
+		// If we can't match a remote domain with anything in the state,
+		// then we'll give the domain a uuid and treat it as a domain added
+		// out-of-band from Terraform.
+		if !found {
+			remoteDomainID = uuid.New().String()
+		}
 
 		// NOTE: We call the Ok variant of the API so we can check if value was set.
 		// WARNING: The code doesn't work as you might expect because of the Fastly API.
@@ -93,8 +118,8 @@ func read(
 			// We need to check if the user config has set the comment.
 			// If not, then we'll again set the value to null to avoid a plan diff.
 			// See the above WARNING for the details.
-			for stateDomainName, stateDomainData := range stateDomains {
-				if stateDomainName == remoteDomainName {
+			for _, stateDomainData := range stateDomains {
+				if stateDomainData.Name.ValueString() == remoteDomainName {
 					if stateDomainData.Comment.IsNull() {
 						remoteDomainData.Comment = types.StringNull()
 					}
@@ -134,7 +159,7 @@ func read(
 			return nil, err
 		}
 
-		remoteDomains[remoteDomainName] = remoteDomainData
+		remoteDomains[remoteDomainID] = remoteDomainData
 	}
 
 	return remoteDomains, nil

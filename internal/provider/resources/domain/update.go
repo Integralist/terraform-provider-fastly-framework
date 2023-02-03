@@ -35,20 +35,20 @@ func (r *Resource) Update(
 	// We should make them a single type (as the API is one endpoint).
 	// Then we can expose a `dynamic` boolean attribute to control the type.
 
-	for domainName := range r.Deleted {
-		if err := deleted(ctx, api, serviceData, domainName, resp); err != nil {
+	for _, domainData := range r.Deleted {
+		if err := deleted(ctx, api, serviceData, domainData, resp); err != nil {
 			return err
 		}
 	}
 
-	for domainName, domainData := range r.Added {
-		if err := added(ctx, api, serviceData, domainName, domainData, resp); err != nil {
+	for _, domainData := range r.Added {
+		if err := added(ctx, api, serviceData, domainData, resp); err != nil {
 			return err
 		}
 	}
 
-	for domainName, domainData := range r.Modified {
-		if err := modified(ctx, api, serviceData, domainName, domainData, resp); err != nil {
+	for _, domainData := range r.Modified {
+		if err := modified(ctx, api, serviceData, domainData, resp); err != nil {
 			return err
 		}
 	}
@@ -65,10 +65,10 @@ func deleted(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domainName string,
+	domainData models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainName)
+	clientReq := api.Client.DomainAPI.DeleteDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainData.Name.ValueString())
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
@@ -89,12 +89,11 @@ func added(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domainName string,
 	domainData models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
 	clientReq := api.Client.DomainAPI.CreateDomain(api.ClientCtx, serviceData.ID, serviceData.Version)
-	clientReq.Name(domainName)
+	clientReq.Name(domainData.Name.ValueString())
 
 	if !domainData.Comment.IsNull() {
 		clientReq.Comment(domainData.Comment.ValueString())
@@ -119,20 +118,20 @@ func modified(
 	ctx context.Context,
 	api helpers.API,
 	serviceData *data.Service,
-	domainName string,
 	domainData models.Domain,
 	resp *resource.UpdateResponse,
 ) error {
-	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainName)
+	domainNameParam := domainData.Name.ValueString()
+	namePast := domainData.NamePast.ValueString()
+	if namePast != "" {
+		domainNameParam = namePast
+	}
 
+	clientReq := api.Client.DomainAPI.UpdateDomain(api.ClientCtx, serviceData.ID, serviceData.Version, domainNameParam)
 	if !domainData.Comment.IsNull() {
 		clientReq.Comment(domainData.Comment.ValueString())
 	}
-
-	// NOTE: We don't bother to check/update the domain's Name field.
-	// This is because if the name of the domain has changed, then that means
-	// a new domain will be added and the original domain deleted. Thus, we'll
-	// only have a domain as 'modified' if the Comment field was modified.
+	clientReq.Name(domainData.Name.ValueString())
 
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {

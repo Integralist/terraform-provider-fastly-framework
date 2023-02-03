@@ -27,8 +27,8 @@ func (r *Resource) Create(
 	var domains map[string]models.Domain
 	req.Plan.GetAttribute(ctx, path.Root("domains"), &domains)
 
-	for domainName, domainData := range domains {
-		if err := create(ctx, domainName, domainData, api, serviceData, resp); err != nil {
+	for _, domainData := range domains {
+		if err := create(ctx, domainData, api, serviceData, resp); err != nil {
 			return err
 		}
 	}
@@ -41,7 +41,6 @@ func (r *Resource) Create(
 // create is the common behaviour for creating this resource.
 func create(
 	ctx context.Context,
-	domainName string,
 	domainData models.Domain,
 	api helpers.API,
 	service *data.Service,
@@ -55,7 +54,7 @@ func create(
 		service.Version,
 	)
 
-	clientReq.Name(domainName)
+	clientReq.Name(domainData.Name.ValueString())
 
 	if !domainData.Comment.IsNull() {
 		clientReq.Comment(domainData.Comment.ValueString())

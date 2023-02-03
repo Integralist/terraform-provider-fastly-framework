@@ -2,6 +2,15 @@
 
 The latest [HashiCorp Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework) presents challenges that we should investigate and find more elegant solutions for.
 
+## CRUD boundaries
+
+Terraform doesn't have a concept of 'nested' resources, and so to workaround that design constraint our CRUD methods start to blur their boundary lines.
+
+- *CREATE:* Runs once for top-level and nested resources.
+- *READ:* Runs every time for top-level and nested resources.
+- *UPDATE:* Runs every time for top-level and nested resource + CREATE/DELETE for nested resources.
+- *DELETE:* Runs every time for top-level resources.
+
 ## Handling errors with nested attributes.
 
 With the original Fastly Terraform provider we had [this issue](https://github.com/fastly/terraform-provider-fastly/issues/631) related to the design of the provider using set 'blocks' to represent a nested resource (even though Terraform has no concept of a nested resource and expects a resource to be a 1:1 mapping with a single API endpoint).
