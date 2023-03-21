@@ -23,10 +23,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
           cache: true
+          go-version-file: 'go.mod'
       - run: go mod download
       - run: go build -v .
 
@@ -34,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
           cache: true
+          go-version-file: 'go.mod'
       - run: go generate ./...
       - name: git diff
         run: |
@@ -60,17 +60,17 @@ jobs:
           - '1.2.*'
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
           cache: true
+          go-version-file: 'go.mod'
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
       - env:
-          TF_ACC: "1"
           FASTLY_API_TOKEN: ${{ secrets.FASTLY_API_TOKEN }}
+          TF_ACC: "1"
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
