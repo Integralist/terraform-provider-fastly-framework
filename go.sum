@@ -30,8 +30,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/emirpasic/gods v1.12.0 h1:QAUIPSaCu4G+POclxeqb3F+WPpdKqFGlw36+yOzGlrg=
 github.com/emirpasic/gods v1.12.0/go.mod h1:YfzfFFoVP/catgzJb4IKIqXjX78Ha8FMSDh3ymbK86o=
-github.com/fastly/fastly-go v1.0.0-beta.6 h1:u2lX5DW/zK+yGHhT/wAvskn91kYWppAAROhnHXcq4vg=
-github.com/fastly/fastly-go v1.0.0-beta.6/go.mod h1:ev9Xm6svDmNXg9VVHCGCEkq2fWnhPWnol+M4ncl7w6I=
+github.com/fastly/fastly-go v1.0.0-beta.7 h1:sy/iZy+y11fDdC3zj3vhdhgrUKPFGuKoh7Px9yi0+QQ=
+github.com/fastly/fastly-go v1.0.0-beta.7/go.mod h1:ev9Xm6svDmNXg9VVHCGCEkq2fWnhPWnol+M4ncl7w6I=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
