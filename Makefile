@@ -1,35 +1,33 @@
-.PHONY: all build clean default docs test testacc testacc_debug testacc_trace
+.PHONY: all build clean default docs help test testacc testacc_debug testacc_trace
 
-# Enables support for tools such as https://github.com/rakyll/gotest
-TEST_COMMAND ?= go test
+TEST_COMMAND ?= go test ## Enables support for tools such as https://github.com/rakyll/gotest
 
-# Compile development build for local testing of the provider.
-build:
+build: ## Compile development build for local testing of the provider.
 	@sh -c "'./scripts/local-build.sh'"
 	@go install .
 
-# Clean Fastly services that have leaked when running acceptance tests
-clean:
+clean: ## Clean Fastly services that have leaked when running acceptance tests
 	@if [ "$(SILENCE)" != "true" ]; then \
 		echo "WARNING: This will destroy infrastructure. Use only in development accounts."; \
 		fi
 	@fastly service list --token ${FASTLY_API_TOKEN} | grep -E '^tf\-' | awk '{print $$2}' | xargs -I % fastly service delete --token ${FASTLY_API_KEY} -f -s %
 
-# Define the default Make target if none is specified via the command-line.
-default: testacc
-
-# Generate documentation
-docs:
+docs: ## Generate documentation
 	go generate ./...
 
-# Run acceptance tests
-testacc:
+testacc: ## Run acceptance tests
 	TF_ACC=1 $(TEST_COMMAND) ./... -v $(TESTARGS) -timeout 120m
 
-# Run acceptance tests with debug provider logs
-testacc_debug:
+testacc_debug: ## Run acceptance tests with debug provider logs
 	TF_LOG_PROVIDER_FASTLY=DEBUG make testacc
 
-# Run acceptance tests with trace provider logs
-testacc_trace:
+testacc_trace: ## Run acceptance tests with trace provider logs
 	TF_LOG_PROVIDER_FASTLY=TRACE make testacc
+
+help: ## Display this help message
+	@printf "Targets\n"
+	@grep -h -E '^[0-9a-zA-Z_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-22s\033[0m %s\n", $$1, $$2}'
+	@printf "\nDefault target\n"
+	@printf "\033[36m%s\033[0m" $(.DEFAULT_GOAL)
+	@printf "\n\nMake Variables\n"
+	@(grep -h -E '^[0-9a-zA-Z_.-]+\s[:?]?=.*? ## .*$$' $(MAKEFILE_LIST) || true) | sort | awk 'BEGIN {FS = "[:?]?=.*?## "}; {printf "\033[36m%-25s\033[0m %s\n", $$1, $$2}'
