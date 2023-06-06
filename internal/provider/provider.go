@@ -10,7 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/serviceactivation"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/servicevcl"
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/thing"
 )
 
 // Ensure FastlyProvider satisfies various provider interfaces.
@@ -59,7 +62,9 @@ func (p *FastlyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 func (p *FastlyProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		serviceactivation.NewResource(),
 		servicevcl.NewResource(),
+		thing.NewResource(),
 	}
 }
 

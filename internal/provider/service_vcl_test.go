@@ -49,6 +49,17 @@ func TestAccResourceServiceVCL(t *testing.T) {
         },
       }
     }
+
+    resource "fastly_thing" "test" {
+      id       = fastly_service_vcl.test.id
+      version  = fastly_service_vcl.test.version
+    }
+
+    resource "fastly_service_activation" "test" {
+      activate = false
+      id       = fastly_service_vcl.test.id
+      version  = fastly_service_vcl.test.version
+    }
     `, serviceName, false, domainName, domainName)
 
 	// Update the first domain's comment + second domain's name (force_destroy = true).
@@ -69,6 +80,17 @@ func TestAccResourceServiceVCL(t *testing.T) {
           comment = "a random updated comment"
         },
       }
+    }
+
+    resource "fastly_thing" "test" {
+      id       = fastly_service_vcl.test.id
+      version  = fastly_service_vcl.test.version
+    }
+
+    resource "fastly_service_activation" "test" {
+      activate = true
+      id       = fastly_service_vcl.test.id
+      version  = fastly_service_vcl.test.version
     }
     `, serviceName, true, domainName, domainName)
 
