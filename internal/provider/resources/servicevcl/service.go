@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/domain"
@@ -70,6 +71,7 @@ func (r *Resource) Metadata(_ context.Context, req resource.MetadataRequest, res
 //
 // NOTE: Some optional attributes are also 'computed' so we can set a default.
 func (r *Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	// Return the common attributes across both VCL and Compute services.
 	attrs := schemas.Service()
 
 	attrs["default_ttl"] = schema.Int64Attribute{
