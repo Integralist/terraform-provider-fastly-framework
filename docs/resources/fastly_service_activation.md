@@ -17,8 +17,8 @@ Testing
 
 ### Required
 
-- `id` (String) Alphanumeric string identifying the service resource
-- `version` (Number) The service version to activate
+- `id` (String) Alphanumeric string identifying the associated service resource
+- `version` (Number) The associated service version to activate
 
 ### Optional
 

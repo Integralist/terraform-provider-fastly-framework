@@ -1,4 +1,4 @@
-package serviceactivation
+package thing
 
 import (
 	"context"
@@ -14,13 +14,13 @@ import (
 // Config, planned state, and prior state values should be read from the UpdateRequest.
 // New state values set on the UpdateResponse.
 func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *models.ServiceActivation
+	var plan *models.Thing
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var state *models.ServiceActivation
+	var state *models.Thing
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return

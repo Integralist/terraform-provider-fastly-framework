@@ -1,4 +1,4 @@
-package serviceactivation
+package thing
 
 import (
 	"context"
@@ -10,11 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-
-	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 )
 
-//go:embed docs/service_activation.md
+//go:embed docs/thing.md
 var resourceDescription string
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -43,7 +41,7 @@ type Resource struct {
 
 // Metadata should return the full name of the resource.
 func (r *Resource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_service_activation"
+	resp.TypeName = req.ProviderTypeName + "_thing"
 }
 
 // Schema should return the schema for this resource.
@@ -51,14 +49,6 @@ func (r *Resource) Metadata(_ context.Context, req resource.MetadataRequest, res
 // NOTE: Some optional attributes are also 'computed' so we can set a default.
 func (r *Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := map[string]schema.Attribute{
-		"activate": schema.BoolAttribute{
-			Computed:            true,
-			MarkdownDescription: "Whether to activate the service (true) or to leave it inactive (false).",
-			Optional:            true,
-			PlanModifiers: []planmodifier.Bool{
-				helpers.BoolDefaultModifier{Default: true},
-			},
-		},
 		"id": schema.StringAttribute{
 			Required:            true,
 			MarkdownDescription: "Alphanumeric string identifying the associated service resource",
@@ -70,7 +60,7 @@ func (r *Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *res
 		},
 		"version": schema.Int64Attribute{
 			Required:            true,
-			MarkdownDescription: "The associated service version to activate",
+			MarkdownDescription: "The associated service version",
 		},
 	}
 
