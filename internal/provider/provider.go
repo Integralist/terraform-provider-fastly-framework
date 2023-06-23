@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+
+	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/datasources"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/servicevcl"
 )
 
@@ -65,7 +67,7 @@ func (p *FastlyProvider) Resources(_ context.Context) []func() resource.Resource
 
 func (p *FastlyProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
+		datasources.NewExample,
 	}
 }
 

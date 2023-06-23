@@ -1,4 +1,4 @@
-package provider
+package datasources
 
 import (
 	"context"
@@ -12,28 +12,28 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
-var _ datasource.DataSource = &ExampleDataSource{}
+var _ datasource.DataSource = &Example{}
 
-func NewExampleDataSource() datasource.DataSource {
-	return &ExampleDataSource{}
+func NewExample() datasource.DataSource {
+	return &Example{}
 }
 
-// ExampleDataSource defines the data source implementation.
-type ExampleDataSource struct {
+// Example defines the data source implementation.
+type Example struct {
 	client *fastly.APIClient
 }
 
-// ExampleDataSourceModel describes the data source data model.
-type ExampleDataSourceModel struct {
+// ExampleModel describes the data source data model.
+type ExampleModel struct {
 	ConfigurableAttribute types.String `tfsdk:"configurable_attribute"`
 	ID                    types.String `tfsdk:"id"`
 }
 
-func (d *ExampleDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (d *Example) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_example"
 }
 
-func (d *ExampleDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *Example) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: "Example data source",
@@ -51,7 +51,7 @@ func (d *ExampleDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 	}
 }
 
-func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *Example) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -71,8 +71,8 @@ func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.Config
 	d.client = client
 }
 
-func (d *ExampleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var data ExampleDataSourceModel
+func (d *Example) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data ExampleModel
 
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
