@@ -50,5 +50,3 @@ Required:
 Optional:
 
 - `comment` (String) An optional comment about the domain
-
-
