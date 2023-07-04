@@ -1,6 +1,5 @@
 # Terraform Provider testing workflow.
 name: Tests
-
 # This GitHub action runs your tests for each pull request and push.
 # Optionally, you can turn it on using a schedule for regular testing.
 on:
@@ -10,11 +9,9 @@ on:
   push:
     paths-ignore:
       - 'README.md'
-
 # Testing only needs permissions to read the repository contents.
 permissions:
   contents: read
-
 jobs:
   # Ensure project builds before running testing matrix
   build:
@@ -29,8 +26,8 @@ jobs:
           go-version-file: 'go.mod'
       - run: go mod download
       - run: go build -v .
-
   generate:
+    name: Generate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -43,7 +40,6 @@ jobs:
         run: |
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
-
   # Run acceptance tests in a matrix with Terraform CLI versions
   test:
     name: Terraform Provider Acceptance Tests
