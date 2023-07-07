@@ -2,9 +2,10 @@ package schemas
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 )
 
 // Service returns the common schema attributes between VCL/Compute services.
@@ -16,17 +17,13 @@ func Service() map[string]schema.Attribute {
 			Computed:            true,
 			MarkdownDescription: "Conditionally prevents the Service from being activated. The apply step will continue to create a new draft version but will not activate it if this is set to `false`. Default `true`",
 			Optional:            true,
-			PlanModifiers: []planmodifier.Bool{
-				helpers.BoolDefaultModifier{Default: true},
-			},
+			Default:             booldefault.StaticBool(true),
 		},
 		"comment": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "Description field for the service. Default `Managed by Terraform`",
 			Optional:            true,
-			PlanModifiers: []planmodifier.String{
-				helpers.StringDefaultModifier{Default: "Managed by Terraform"},
-			},
+			Default:             stringdefault.StaticString("Managed by Terraform"),
 		},
 		"domains": schema.MapNestedAttribute{
 			MarkdownDescription: "Each key within the map should be a unique identifier for the resources contained within. It is important to note that changing the key will delete and recreate the resource",

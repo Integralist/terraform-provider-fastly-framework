@@ -1,4 +1,10 @@
 // Copied from https://github.com/hashicorp/terraform-plugin-framework/blob/main/website/docs/plugin/framework/resources/plan-modification.mdx#creating-attribute-plan-modifiers
+//
+// EXAMPLE:
+//
+//	PlanModifiers: []planmodifier.Int64{
+//		helpers.Int64DefaultModifier{Default: 3600},
+//	},
 package helpers
 
 import (
