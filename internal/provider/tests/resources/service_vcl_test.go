@@ -81,7 +81,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			// test where we set `force` to `true`, then we'd use the last known state
 			// of `false` and that would prevent the delete operation from succeeding.
 			//
-			// NOTE: We have to ignore the dommains attribute when importing because
+			// NOTE: We have to ignore the domains attribute when importing because
 			// of data type used (MapNestedAttribute). The map keys are arbitrarily
 			// chosen by a user in their config and so when importing a service we
 			// have to generate a uuid for the key, which doesn't match with the
