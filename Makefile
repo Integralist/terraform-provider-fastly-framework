@@ -12,6 +12,9 @@ clean: ## Clean Fastly services that have leaked when running acceptance tests
 		fi
 	@fastly service list --token ${FASTLY_API_TOKEN} | grep -E '^tf\-' | awk '{print $$2}' | xargs -I % fastly service delete --token ${FASTLY_API_KEY} -f -s %
 
+deps_update: ## Update all go.mod dependencies to the latest versions
+	go get -u ./...
+
 docs: ## Generate documentation
 	go generate ./...
 
