@@ -10,11 +10,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/domain"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
@@ -77,9 +77,7 @@ func (r *Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *res
 		Computed:            true,
 		MarkdownDescription: "The default Time-to-live (TTL) for requests",
 		Optional:            true,
-		PlanModifiers: []planmodifier.Int64{
-			helpers.Int64DefaultModifier{Default: 3600},
-		},
+		Default:             int64default.StaticInt64(3600),
 	}
 	attrs["default_host"] = schema.StringAttribute{
 		MarkdownDescription: "The default hostname",
@@ -89,17 +87,13 @@ func (r *Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *res
 		Computed:            true,
 		MarkdownDescription: "Enables serving a stale object if there is an error",
 		Optional:            true,
-		PlanModifiers: []planmodifier.Bool{
-			helpers.BoolDefaultModifier{Default: false},
-		},
+		Default:             booldefault.StaticBool(false),
 	}
 	attrs["stale_if_error_ttl"] = schema.Int64Attribute{
 		Computed:            true,
 		MarkdownDescription: "The default time-to-live (TTL) for serving the stale object for the version",
 		Optional:            true,
-		PlanModifiers: []planmodifier.Int64{
-			helpers.Int64DefaultModifier{Default: 43200},
-		},
+		Default:             int64default.StaticInt64(43200),
 	}
 
 	resp.Schema = schema.Schema{
