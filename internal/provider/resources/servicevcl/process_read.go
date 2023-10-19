@@ -37,6 +37,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
 		return
 	}
+	defer httpResp.Body.Close()
 
 	// NOTE: When importing a service there is no prior 'serviceVersion' in the state.
 	// So we presume the user wants to import the last active service serviceVersion.
@@ -113,6 +114,8 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read service settings, got error: %s", err))
 		return readErr
 	}
+	defer httpResp.Body.Close()
+
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))

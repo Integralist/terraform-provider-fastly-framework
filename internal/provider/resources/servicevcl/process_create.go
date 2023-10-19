@@ -68,6 +68,7 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
+		defer httpResp.Body.Close()
 	}
 
 	// Save the planned changes into Terraform state.
@@ -101,6 +102,8 @@ func createService(
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create service, got error: %s", err))
 		return "", 0, err
 	}
+	defer httpResp.Body.Close()
+
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
