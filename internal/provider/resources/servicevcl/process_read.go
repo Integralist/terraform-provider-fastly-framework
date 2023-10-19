@@ -97,7 +97,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	// Save the updated state data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	tflog.Trace(ctx, "Read", map[string]any{"state": fmt.Sprintf("%+v", state)})
+	tflog.Trace(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
 }
 
 func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {

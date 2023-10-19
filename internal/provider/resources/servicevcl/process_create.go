@@ -74,7 +74,7 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	tflog.Trace(ctx, "Create", map[string]any{"state": fmt.Sprintf("%+v", plan)})
+	tflog.Trace(ctx, "Create", map[string]any{"state": fmt.Sprintf("%#v", plan)})
 }
 
 func createService(

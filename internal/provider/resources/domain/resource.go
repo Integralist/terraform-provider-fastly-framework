@@ -21,3 +21,5 @@ type Resource struct {
 	// Changed indicates if the resource has changes.
 	Changed bool
 }
+
+// NOTE: Schema defined in ../../schemas/service.go
