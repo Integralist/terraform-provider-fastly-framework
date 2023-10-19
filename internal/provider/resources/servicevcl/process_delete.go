@@ -32,6 +32,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
 			return
 		}
+		defer httpResp.Body.Close()
 
 		version := *clientResp.GetActiveVersion().Number
 
@@ -43,6 +44,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to deactivate service version %d, got error: %s", version, err))
 				return
 			}
+			defer httpResp.Body.Close()
 		}
 	}
 
@@ -54,6 +56,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete service, got error: %s", err))
 			return
 		}
+		defer httpResp.Body.Close()
 	}
 
 	tflog.Trace(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%+v", state)})

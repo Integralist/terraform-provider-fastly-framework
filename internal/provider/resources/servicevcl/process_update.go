@@ -87,6 +87,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
+		defer httpResp.Body.Close()
 	}
 
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
@@ -129,6 +130,8 @@ func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags d
 		diags.AddError("Client Error", fmt.Sprintf("Unable to set service settings, got error: %s", err))
 		return createErr
 	}
+	defer httpResp.Body.Close()
+
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
 		diags.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
@@ -176,6 +179,7 @@ func cloneService(
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
 		return 0, err
 	}
+	defer httpResp.Body.Close()
 	return clientResp.GetNumber(), nil
 }
 
@@ -201,6 +205,7 @@ func updateServiceAttributes(
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
 		return err
 	}
+	defer httpResp.Body.Close()
 
 	return nil
 }
