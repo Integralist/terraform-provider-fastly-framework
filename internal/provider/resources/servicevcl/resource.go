@@ -134,6 +134,12 @@ func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, r
 // If setting an attribute with the import identifier, it is recommended to use
 // the ImportStatePassthroughID() call in this method.
 // https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ImportStatePassthroughID
+//
+// NOTE: The resource's ID is set in state and its Read() method called.
+// If we look at the Read() method in ./process_read.go we'll see it calls
+// `ServiceAPI.GetServiceDetail()` passing in the ID the user specifies. The
+// service resource additionally iterates over all nested resources, which is
+// how the state gets populated for them.
 func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// TODO: req.ID needs to be checked for format.
 	// Typically just a Service ID but can also be <service id>@<service version>
