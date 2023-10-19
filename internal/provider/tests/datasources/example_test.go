@@ -3,7 +3,7 @@ package datasources
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider"
 )
