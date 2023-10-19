@@ -11,6 +11,7 @@ import (
 // Service returns the common schema attributes between VCL/Compute services.
 //
 // NOTE: Some optional attributes are also 'computed' so we can set a default.
+// This is a requirement enforced on us by Terraform.
 func Service() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"activate": schema.BoolAttribute{
