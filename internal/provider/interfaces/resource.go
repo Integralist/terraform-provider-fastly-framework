@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
 )
