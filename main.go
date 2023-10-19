@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider"
 )
 
@@ -20,7 +21,7 @@ import (
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
 // these will be set by the goreleaser configuration
-// to appropriate values for the compiled binary
+// to appropriate values for the compiled binary.
 var version = "dev"
 
 // goreleaser can also pass the specific commit if you want

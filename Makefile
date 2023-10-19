@@ -2,7 +2,7 @@
 
 TEST_COMMAND ?= go test ## Enables support for tools such as https://github.com/rakyll/gotest
 
-build: ## Compile development build for local testing of the provider.
+build: lint ## Compile development build for local testing of the provider.
 	@sh -c "'./scripts/local-build.sh'"
 	@go install .
 
@@ -17,6 +17,9 @@ deps_update: ## Update all go.mod dependencies to the latest versions
 
 docs: ## Generate documentation
 	go generate ./...
+
+lint: ## Run golangci-lint
+	golangci-lint run --verbose
 
 testacc: ## Run acceptance tests
 	TF_ACC=1 $(TEST_COMMAND) ./... -v $(TESTARGS) -timeout 120m
