@@ -12,45 +12,55 @@ import (
 
 func TestAccResourceServiceVCL(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
-	domainName := serviceName
+	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
+	domain1CommentAdded := "a random updated comment"
+	domain2Name := fmt.Sprintf("%s-tpff-2.integralist.co.uk", serviceName)
+	domain2NameUpdated := fmt.Sprintf("%s-tpff-2-updated.integralist.co.uk", serviceName)
 
-	// Create a service with two domains (force_destroy = false).
+	// Create a service with two domains.
+	// Also set `force_destroy = false`.
 	configCreate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       name = "%s"
-      force_destroy = %t
+      force_destroy = false
 
       domains = {
         "example-1" = {
-          name = "%s-tpff-1.integralist.co.uk"
+          name = "%s"
         },
         "example-2" = {
-          name = "%s-tpff-2.integralist.co.uk"
+          name = "%s"
         },
       }
     }
-    `, serviceName, false, domainName, domainName)
+    `, serviceName, domain1Name, domain2Name)
 
 	// Update the first domain's comment + second domain's name (force_destroy = true).
 	// We also change the order of the domains so the second is now first.
-	// This should result in:
-	//    - Two domains being "modified"    (tpff-1 has a comment added + tpff-2 has changed name).
+	//
+	// This should result in two domains being "modified":
+	//    - tpff-1 has a comment added
+	//    - tpff-2 has changed name
+	//
+	// The domain ordering shouldn't matter (and is what we want to validate).
+	//
+	// IMPORTANT: Must set `force_destroy` to `true` so we can delete the service.
 	configUpdate := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       name = "%s"
-      force_destroy = %t
+      force_destroy = true
 
       domains = {
         "example-2" = {
-          name = "%s-tpff-2-updated.integralist.co.uk"
+          name = "%s"
         },
         "example-1" = {
-          name = "%s-tpff-1.integralist.co.uk"
-          comment = "a random updated comment"
+          name = "%s"
+          comment = "%s"
         },
       }
     }
-    `, serviceName, true, domainName, domainName)
+    `, serviceName, domain2NameUpdated, domain1Name, domain1CommentAdded)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
@@ -60,17 +70,27 @@ func TestAccResourceServiceVCL(t *testing.T) {
 			{
 				Config: configCreate,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "activate", "true"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "default_ttl", "3600"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.%", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-1.name", domain1Name),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-2.name", domain2Name),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "stale_if_error", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "stale_if_error_ttl", "43200"),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-1.comment"),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-2.comment"),
 				),
 			},
 			// Update and Read testing
 			{
-				// IMPORTANT: Must set `force_destroy` to `true` so we can delete service.
 				Config: configUpdate,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
 					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "true"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-1.comment", domain1CommentAdded),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-2.name", domain2NameUpdated),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-2.comment"),
 				),
 			},
 			// ImportState testing
