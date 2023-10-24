@@ -99,7 +99,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	tflog.Trace(ctx, "Update", map[string]any{"state": fmt.Sprintf("%#v", plan)})
+	tflog.Debug(ctx, "Update", map[string]any{"state": fmt.Sprintf("%#v", plan)})
 }
 
 func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {

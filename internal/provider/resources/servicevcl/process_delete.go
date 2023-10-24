@@ -65,5 +65,5 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		defer httpResp.Body.Close()
 	}
 
-	tflog.Trace(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%#v", state)})
+	tflog.Debug(ctx, "Delete", map[string]any{"state": fmt.Sprintf("%#v", state)})
 }

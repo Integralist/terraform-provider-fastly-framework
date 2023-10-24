@@ -153,7 +153,7 @@ func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequ
 	var state map[string]tftypes.Value
 	err := resp.State.Raw.As(&state)
 	if err == nil {
-		tflog.Debug(ctx, "ImportState", map[string]any{"state": fmt.Sprintf("%#v", state)})
+		tflog.Trace(ctx, "ImportState", map[string]any{"state": fmt.Sprintf("%#v", state)})
 	}
 }
 
