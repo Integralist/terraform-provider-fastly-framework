@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/fastly/fastly-go/fastly"
@@ -36,7 +37,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
         },
       }
     }
-    `, serviceName, domain1Name, domain2Name)
+  `, serviceName, domain1Name, domain2Name)
 
 	// Update the first domain's comment + second domain's name (force_destroy = true).
 	// We also change the order of the domains so the second is now first.
@@ -156,7 +157,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
 	})
 
 	// NOTE: The following test validates the service deleted_at behaviour.
-	// Which is: if deleted_at is not empty, then remove the service resource.
+	// i.e. if deleted_at is not empty, then remove the service resource.
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
@@ -220,6 +221,49 @@ func TestAccResourceServiceVCL(t *testing.T) {
 					},
 				),
 				ExpectNonEmptyPlan: true, // We expect a diff for creating our service.
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+
+	// NOTE: The following test validates the service type import behaviour.
+	// i.e. when importing a service, check the service type matches the resource.
+	// e.g. importing a Compute service ID into a VCL service resource.
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { provider.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// We need a resource to be created by Terraform so we can import into it.
+			{
+				Config: fmt.Sprintf(`
+          resource "fastly_service_vcl" "test" {
+            name = "%s"
+            activate = false
+            force_destroy = true
+
+            domains = {
+              "example" = {
+                name = "%s"
+              },
+            }
+          }
+        `, serviceName, domain1Name),
+			},
+			// ImportState testing
+			{
+				ResourceName: "fastly_service_vcl.test",
+				ImportState:  true,
+				ImportStateIdFunc: func(_ *terraform.State) (string, error) {
+					apiClient := fastly.NewAPIClient(fastly.NewConfiguration())
+					ctx := fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
+					req := apiClient.ServiceAPI.CreateService(ctx)
+					resp, _, err := req.Name(fmt.Sprintf("tf-test-compute-service-%s", acctest.RandString(10))).ResourceType("wasm").Execute()
+					if err != nil {
+						return "", fmt.Errorf("failed to create Compute service: %w", err)
+					}
+					return *resp.ID, nil
+				},
+				ExpectError: regexp.MustCompile(`Expected service type vcl, got: wasm`),
 			},
 			// Delete testing automatically occurs in TestCase
 		},

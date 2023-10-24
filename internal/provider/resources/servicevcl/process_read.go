@@ -18,8 +18,6 @@ import (
 // Planned state values should be read from the ReadRequest.
 // New state values set on the ReadResponse.
 //
-// TODO: How to handle DeletedAt attribute.
-// TODO: How to handle service type mismatch when importing.
 // TODO: How to handle name/comment which are versionless and don't need `activate`.
 func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Store the prior state (if any) so it can later be mutated and saved back into state.
@@ -43,6 +41,15 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	if t, ok := clientResp.GetDeletedAtOk(); ok && t != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.GetDeletedAtOk", map[string]any{"deleted_at": t, "state": state})
 		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	// Avoid issue when importing the wrong service type.
+	serviceType := clientResp.GetType()
+	vclServiceType := helpers.ServiceTypeVCL.String()
+	if serviceType != vclServiceType {
+		tflog.Debug(ctx, "Fastly service type error", map[string]any{"http_resp": httpResp, "type": serviceType})
+		resp.Diagnostics.AddError("User Error", fmt.Sprintf("Expected service type %s, got: %s", vclServiceType, serviceType))
 		return
 	}
 
