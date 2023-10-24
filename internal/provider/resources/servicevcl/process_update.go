@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
@@ -64,7 +63,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	// NOTE: Update operation blurs CRUD lines as nested resources also handle create and delete.
 	for _, nestedResource := range r.nestedResources {
 		if nestedResource.HasChanges() {
-			serviceData := data.Service{
+			serviceData := helpers.Service{
 				ID:      serviceID,
 				Version: serviceVersion,
 			}
@@ -149,7 +148,7 @@ func determineChangesInNestedResources(
 ) (resourcesChanged bool, err error) {
 	for _, nestedResource := range nestedResources {
 		changed, err := nestedResource.InspectChanges(
-			ctx, req, resp, helpers.API{}, &data.Service{},
+			ctx, req, resp, helpers.API{}, &helpers.Service{},
 		)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
