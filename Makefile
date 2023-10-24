@@ -8,7 +8,7 @@ build: lint ## Compile development build for local testing of the provider.
 
 clean: ## Clean Fastly services that have leaked when running acceptance tests
 	@if [ "$(SILENCE)" != "true" ]; then \
-		echo "WARNING: This will destroy infrastructure. Use only in development accounts."; \
+		printf "WARNING: This will destroy infrastructure. Use only in development accounts.\n\n"; \
 		fi
 	@fastly service list --token ${FASTLY_API_TOKEN} | grep -E '^tf\-' | awk '{print $$2}' | xargs -I % fastly service delete --token ${FASTLY_API_KEY} -f -s %
 
