@@ -44,7 +44,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	// Avoid issue when importing the wrong service type.
+	// Avoid issue with service type mismatch (only relevant when importing).
 	serviceType := clientResp.GetType()
 	vclServiceType := helpers.ServiceTypeVCL.String()
 	if serviceType != vclServiceType {
