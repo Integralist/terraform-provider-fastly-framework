@@ -129,24 +129,25 @@ func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, r
 
 // ImportState is called when the provider must import the state of a resource instance.
 //
-// This method must return enough state so the Read method can properly refresh
-// the full resource.
-//
-// If setting an attribute with the import identifier, it is recommended to use
-// the ImportStatePassthroughID() call in this method.
-// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#ImportStatePassthroughID
-//
-// NOTE: The resource's ID is set in state and its Read() method called.
+// The resource's ID is set into the state and its Read() method called.
 // If we look at the Read() method in ./process_read.go we'll see it calls
-// `ServiceAPI.GetServiceDetail()` passing in the ID the user specifies. The
-// service resource additionally iterates over all nested resources, which is
-// how the state gets populated for them.
+// `ServiceAPI.GetServiceDetail()` passing in the ID the user specifies.
+//
+// e.g. `terraform import ADDRESS ID`
+// https://developer.hashicorp.com/terraform/cli/commands/import#usage`
+//
+// The service resource then iterates over all nested resources populating the
+// state for each nested resource.
 func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// TODO: req.ID needs to be checked for format.
 	// Typically just a Service ID but can also be <service id>@<service version>
 	// If the @<service_version> format is provided, then we need to parse the
 	// version and set it into the `version` attribute as well as `last_active`.
 
+	// The ImportStatePassthroughID() call is a small helper function that simply
+	// checks for an empty ID value passed (and errors accordingly) and if there
+	// is no error it calls `resp.State.SetAttribute()` passing in the ADDRESS
+	// (which we hardcode to the `id` attribute) and the user provided ID value.
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 
 	var state map[string]tftypes.Value
