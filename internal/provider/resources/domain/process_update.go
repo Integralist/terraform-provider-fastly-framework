@@ -73,14 +73,14 @@ func deleted(
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.DeleteDomain error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete domain, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to delete domain, got error: %s", err))
 		return err
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return err
 	}
 
@@ -104,14 +104,14 @@ func added(
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.CreateDomain error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create domain, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to create domain, got error: %s", err))
 		return err
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return err
 	}
 
@@ -140,14 +140,14 @@ func modified(
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly DomainAPI.UpdateDomain error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update domain, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to update domain, got error: %s", err))
 		return err
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return err
 	}
 

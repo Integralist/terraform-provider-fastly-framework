@@ -31,7 +31,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.GetServiceDetail error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
 		return
 	}
 	defer httpResp.Body.Close()
@@ -49,7 +49,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	vclServiceType := helpers.ServiceTypeVCL.String()
 	if serviceType != vclServiceType {
 		tflog.Debug(ctx, "Fastly service type error", map[string]any{"http_resp": httpResp, "type": serviceType})
-		resp.Diagnostics.AddError("User Error", fmt.Sprintf("Expected service type %s, got: %s", vclServiceType, serviceType))
+		resp.Diagnostics.AddError(helpers.ErrorUser, fmt.Sprintf("Expected service type %s, got: %s", vclServiceType, serviceType))
 		return
 	}
 
@@ -125,14 +125,14 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly SettingsAPI.GetServiceSettings error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read service settings, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to read service settings, got error: %s", err))
 		return readErr
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return readErr
 	}
 

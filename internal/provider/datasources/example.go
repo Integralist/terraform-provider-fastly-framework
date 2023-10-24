@@ -85,7 +85,7 @@ func (d *Example) Read(ctx context.Context, req datasource.ReadRequest, resp *da
 	// provider client data and make a call using it.
 	// httpResp, err := d.client.Do(httpReq)
 	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read example, got error: %s", err))
+	//     resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to read example, got error: %s", err))
 	//     return
 	// }
 
