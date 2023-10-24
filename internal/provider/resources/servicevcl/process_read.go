@@ -131,7 +131,7 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return readErr
 	}

@@ -104,21 +104,21 @@ func createService(
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return "", 0, fmt.Errorf("failed to create service: %s", httpResp.Status)
 	}
 
 	id, ok := clientResp.GetIDOk()
 	if !ok {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError(helpers.ErrorAPI, "No Service ID was returned")
 		return "", 0, errors.New("failed to create service: no Service ID returned")
 	}
 
 	versions, ok := clientResp.GetVersionsOk()
 	if !ok {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError(helpers.ErrorAPI, "No Service versions returned")
 		return "", 0, errors.New("failed to create service: no Service versions returned")
 	}
