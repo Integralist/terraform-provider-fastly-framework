@@ -48,7 +48,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	serviceType := clientResp.GetType()
 	vclServiceType := helpers.ServiceTypeVCL.String()
 	if serviceType != vclServiceType {
-		tflog.Debug(ctx, "Fastly service type error", map[string]any{"http_resp": httpResp, "type": serviceType})
+		tflog.Trace(ctx, "Fastly service type error", map[string]any{"http_resp": httpResp, "type": serviceType})
 		resp.Diagnostics.AddError(helpers.ErrorUser, fmt.Sprintf("Expected service type %s, got: %s", vclServiceType, serviceType))
 		return
 	}
@@ -111,7 +111,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	// Save the updated state data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	tflog.Trace(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
+	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
 }
 
 func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {
@@ -131,7 +131,7 @@ func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return readErr
 	}

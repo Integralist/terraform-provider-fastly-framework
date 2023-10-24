@@ -99,7 +99,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	// Save the planned changes into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
-	tflog.Trace(ctx, "Update", map[string]any{"state": fmt.Sprintf("%#v", plan)})
+	tflog.Debug(ctx, "Update", map[string]any{"state": fmt.Sprintf("%#v", plan)})
 }
 
 func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {
@@ -132,7 +132,7 @@ func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags d
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
-		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
+		tflog.Trace(ctx, helpers.ErrorAPI, map[string]any{"http_resp": httpResp})
 		diags.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return createErr
 	}
