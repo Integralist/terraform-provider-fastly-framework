@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
 )
 
 // Resource represents an entity that has an associated Fastly API endpoint.
@@ -19,7 +18,7 @@ type Resource interface {
 		req *resource.CreateRequest,
 		resp *resource.CreateResponse,
 		api helpers.API,
-		serviceData *data.Service,
+		serviceData *helpers.Service,
 	) error
 	// Read is called when the provider must read resource values in order to update state.
 	// Planned state values should be read from the ReadRequest.
@@ -29,7 +28,7 @@ type Resource interface {
 		req *resource.ReadRequest,
 		resp *resource.ReadResponse,
 		api helpers.API,
-		serviceData *data.Service,
+		serviceData *helpers.Service,
 	) error
 	// Update is called to update the state of the resource.
 	// Config, planned state, and prior state values should be read from the UpdateRequest.
@@ -45,7 +44,7 @@ type Resource interface {
 		req *resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
-		serviceData *data.Service,
+		serviceData *helpers.Service,
 	) error
 	// InspectChanges checks for configuration changes and persists to data model.
 	InspectChanges(
@@ -53,7 +52,7 @@ type Resource interface {
 		req *resource.UpdateRequest,
 		resp *resource.UpdateResponse,
 		api helpers.API,
-		serviceData *data.Service,
+		serviceData *helpers.Service,
 	) (bool, error)
 	// HasChanges indicates if the nested resource contains configuration changes.
 	HasChanges() bool

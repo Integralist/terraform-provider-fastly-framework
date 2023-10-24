@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
-	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/data"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
@@ -24,7 +23,7 @@ func (r *Resource) Read(
 	req *resource.ReadRequest,
 	resp *resource.ReadResponse,
 	api helpers.API,
-	serviceData *data.Service,
+	serviceData *helpers.Service,
 ) error {
 	var domains map[string]models.Domain
 	req.State.GetAttribute(ctx, path.Root("domains"), &domains)
@@ -43,7 +42,7 @@ func read(
 	ctx context.Context,
 	stateDomains map[string]models.Domain,
 	api helpers.API,
-	service *data.Service,
+	service *helpers.Service,
 	resp *resource.ReadResponse,
 ) (map[string]models.Domain, error) {
 	clientReq := api.Client.DomainAPI.ListDomains(

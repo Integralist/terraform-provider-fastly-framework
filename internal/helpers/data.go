@@ -1,4 +1,4 @@
-package data
+package helpers
 
 // Service is a wrapper around top-level resource service data.
 type Service struct {
