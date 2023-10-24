@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/interfaces"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/resources/domain"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/schemas"
@@ -123,7 +124,7 @@ func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, r
 	}
 
 	r.client = client
-	r.clientCtx = fastly.NewAPIKeyContextFromEnv("FASTLY_API_TOKEN")
+	r.clientCtx = fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
 }
 
 // ImportState is called when the provider must import the state of a resource instance.

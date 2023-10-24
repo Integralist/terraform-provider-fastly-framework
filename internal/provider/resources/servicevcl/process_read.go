@@ -39,6 +39,14 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	}
 	defer httpResp.Body.Close()
 
+	// Check if the service has been deleted outside of Terraform.
+	// And if so we'll just return.
+	if t, ok := clientResp.GetDeletedAtOk(); ok && t != nil {
+		tflog.Trace(ctx, "Fastly ServiceAPI.GetDeletedAtOk", map[string]any{"deleted_at": t, "state": state})
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
 	// NOTE: When importing a service there is no prior 'serviceVersion' in the state.
 	// So we presume the user wants to import the last active service serviceVersion.
 	// Which we retrieve from the GetServiceDetail call.

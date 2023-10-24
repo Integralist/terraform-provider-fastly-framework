@@ -29,7 +29,8 @@ jobs:
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: v1.54.2 # switch to "latest" once https://github.com/golangci/golangci-lint/issues/4156 is resolved
+          args: "--verbose"
   generate:
     name: Generate
     runs-on: ubuntu-latest

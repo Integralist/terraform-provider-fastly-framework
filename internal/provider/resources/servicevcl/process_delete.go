@@ -34,6 +34,11 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		}
 		defer httpResp.Body.Close()
 
+		// Service was deleted outside of Terraform.
+		if deletedAt, _ := clientResp.GetDeletedAtOk(); deletedAt != nil {
+			return
+		}
+
 		version := *clientResp.GetActiveVersion().Number
 
 		if version != 0 {

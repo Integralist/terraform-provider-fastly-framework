@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider"
 )
 
@@ -148,6 +150,76 @@ func TestAccResourceServiceVCL(t *testing.T) {
 					}
 					return nil
 				},
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+
+	// NOTE: The following test validates the service deleted_at behaviour.
+	// Which is: if deleted_at is not empty, then remove the service resource.
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { provider.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: configCreate,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "activate", "true"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "default_ttl", "3600"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.%", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-1.name", domain1Name),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-2.name", domain2Name),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "stale_if_error", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "stale_if_error_ttl", "43200"),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-1.comment"),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-2.comment"),
+				),
+			},
+			// Update and Read testing
+			{
+				Config: configUpdate,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "force_destroy", "true"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-1.comment", domain1CommentAdded),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "domains.example-2.name", domain2NameUpdated),
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "domains.example-2.comment"),
+				),
+			},
+			// Trigger side-effect of deleting resource outside of Terraform.
+			// We use the same config as previous TestStep (so no config changes).
+			//
+			// Because Terraform executes a refresh/plan after each test case, we
+			// validate that the final plan is not empty using `ExpectNonEmptyPlan`.
+			{
+				Config: configUpdate,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					func(s *terraform.State) error {
+						if r, ok := s.RootModule().Resources["fastly_service_vcl.test"]; ok {
+							if id, ok := r.Primary.Attributes["id"]; ok {
+								apiClient := fastly.NewAPIClient(fastly.NewConfiguration())
+								ctx := fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
+								version := int32(2)
+								deactivateReq := apiClient.VersionAPI.DeactivateServiceVersion(ctx, id, version)
+								_, httpResp, err := deactivateReq.Execute()
+								if err != nil {
+									return fmt.Errorf("failed to deactivate service outside of Terraform: %w", err)
+								}
+								defer httpResp.Body.Close()
+								deleteReq := apiClient.ServiceAPI.DeleteService(ctx, id)
+								_, httpResp, err = deleteReq.Execute()
+								if err != nil {
+									return fmt.Errorf("failed to delete service outside of Terraform: %w", err)
+								}
+								defer httpResp.Body.Close()
+							}
+						}
+						return nil
+					},
+				),
+				ExpectNonEmptyPlan: true, // We expect a diff for creating our service.
 			},
 			// Delete testing automatically occurs in TestCase
 		},
