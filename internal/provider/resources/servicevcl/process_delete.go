@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/integralist/terraform-provider-fastly-framework/internal/helpers"
 	"github.com/integralist/terraform-provider-fastly-framework/internal/provider/models"
 )
 
@@ -29,7 +30,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly ServiceAPI.GetServiceDetail error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
+			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to retrieve service details, got error: %s", err))
 			return
 		}
 		defer httpResp.Body.Close()
@@ -46,7 +47,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			_, httpResp, err := clientReq.Execute()
 			if err != nil {
 				tflog.Trace(ctx, "Fastly VersionAPI.DeactivateServiceVersion error", map[string]any{"http_resp": httpResp})
-				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to deactivate service version %d, got error: %s", version, err))
+				resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to deactivate service version %d, got error: %s", version, err))
 				return
 			}
 			defer httpResp.Body.Close()
@@ -58,7 +59,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly ServiceAPI.DeleteService error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete service, got error: %s", err))
+			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to delete service, got error: %s", err))
 			return
 		}
 		defer httpResp.Body.Close()

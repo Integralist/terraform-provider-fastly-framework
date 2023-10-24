@@ -83,7 +83,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
+			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
 		defer httpResp.Body.Close()
@@ -126,14 +126,14 @@ func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags d
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly SettingsAPI.UpdateServiceSettings error", map[string]any{"http_resp": httpResp})
-		diags.AddError("Client Error", fmt.Sprintf("Unable to set service settings, got error: %s", err))
+		diags.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to set service settings, got error: %s", err))
 		return createErr
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		diags.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		diags.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return createErr
 	}
 
@@ -152,7 +152,7 @@ func determineChangesInNestedResources(
 		)
 		if err != nil {
 			tflog.Trace(ctx, "Provider error", map[string]any{"error": err})
-			resp.Diagnostics.AddError("Provider Error", fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
+			resp.Diagnostics.AddError(helpers.ErrorProvider, fmt.Sprintf("InspectChanges failed to detect changes, got error: %s", err))
 			return false, err
 		}
 
@@ -175,7 +175,7 @@ func cloneService(
 	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly VersionAPI.CloneServiceVersion error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to clone service version, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to clone service version, got error: %s", err))
 		return 0, err
 	}
 	defer httpResp.Body.Close()
@@ -201,7 +201,7 @@ func updateServiceAttributes(
 	_, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.UpdateService error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update service, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to update service, got error: %s", err))
 		return err
 	}
 	defer httpResp.Body.Close()

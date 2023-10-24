@@ -64,7 +64,7 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
+			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
 		defer httpResp.Body.Close()
@@ -98,28 +98,28 @@ func createService(
 	clientResp, httpResp, err := clientReq.Execute()
 	if err != nil {
 		tflog.Trace(ctx, "Fastly ServiceAPI.CreateService error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create service, got error: %s", err))
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to create service, got error: %s", err))
 		return "", 0, err
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
+		resp.Diagnostics.AddError(helpers.ErrorAPI, fmt.Sprintf("Unsuccessful status code: %s", httpResp.Status))
 		return "", 0, fmt.Errorf("failed to create service: %s", httpResp.Status)
 	}
 
 	id, ok := clientResp.GetIDOk()
 	if !ok {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", "No Service ID was returned")
+		resp.Diagnostics.AddError(helpers.ErrorAPI, "No Service ID was returned")
 		return "", 0, errors.New("failed to create service: no Service ID returned")
 	}
 
 	versions, ok := clientResp.GetVersionsOk()
 	if !ok {
 		tflog.Trace(ctx, "Fastly API error", map[string]any{"http_resp": httpResp})
-		resp.Diagnostics.AddError("API Error", "No Service versions returned")
+		resp.Diagnostics.AddError(helpers.ErrorAPI, "No Service versions returned")
 		return "", 0, errors.New("failed to create service: no Service versions returned")
 	}
 	version := versions[0].GetNumber()
