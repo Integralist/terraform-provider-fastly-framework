@@ -268,6 +268,54 @@ func TestAccResourceServiceVCLImportServiceTypeCheck(t *testing.T) {
 	})
 }
 
+// The following test validates importing a specific service version.
+// e.g. terraform import fastly_service_vcl.test xxxxxxxxxxxxxxxxxxxx@2.
+func TestAccResourceServiceVCLImportServiceVersion(t *testing.T) {
+	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
+	domain2Name := fmt.Sprintf("%s-tpff-2.integralist.co.uk", serviceName)
+
+	configCreate := configServiceVCLCreate(configServiceVCLCreateOpts{
+		activate:     true,
+		forceDestroy: true,
+		serviceName:  serviceName,
+		domain1Name:  domain1Name,
+		domain2Name:  domain2Name,
+	})
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { provider.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// We need a resource to be created by Terraform so we can import into it.
+			{
+				Config: configCreate,
+			},
+			// Clone the service version and return the import ID to use.
+			{
+				ResourceName: "fastly_service_vcl.test",
+				ImportState:  true,
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					if r, ok := s.RootModule().Resources["fastly_service_vcl.test"]; ok {
+						if id, ok := r.Primary.Attributes["id"]; ok {
+							apiClient := fastly.NewAPIClient(fastly.NewConfiguration())
+							ctx := fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
+							req := apiClient.VersionAPI.CloneServiceVersion(ctx, id, 1)
+							_, _, err := req.Execute()
+							if err != nil {
+								return "", fmt.Errorf("failed to clone service version: %w", err)
+							}
+							return id + "@2", nil
+						}
+					}
+					return "", nil
+				},
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+}
+
 type configServiceVCLCreateOpts struct {
 	activate, forceDestroy                bool
 	serviceName, domain1Name, domain2Name string
