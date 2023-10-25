@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -147,7 +148,7 @@ func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequ
 		if err != nil {
 			return
 		}
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("version"), v)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("version"), types.Int64Value(v))...)
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 

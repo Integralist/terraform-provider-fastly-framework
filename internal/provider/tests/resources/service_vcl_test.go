@@ -310,6 +310,15 @@ func TestAccResourceServiceVCLImportServiceVersion(t *testing.T) {
 					}
 					return "", nil
 				},
+				ImportStateCheck: func(is []*terraform.InstanceState) error {
+					for _, s := range is {
+						serviceVersion := s.Attributes["version"]
+						if serviceVersion != "2" {
+							return fmt.Errorf("import failed: unexpected service version found: got %s, want 2", serviceVersion)
+						}
+					}
+					return nil
+				},
 			},
 			// Delete testing automatically occurs in TestCase
 		},

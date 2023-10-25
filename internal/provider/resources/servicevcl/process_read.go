@@ -53,25 +53,33 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	// NOTE: When importing a service there is no prior 'serviceVersion' in the state.
-	// So we presume the user wants to import the last active service serviceVersion.
-	// Which we retrieve from the GetServiceDetail call.
-	var (
-		foundActive    bool
-		serviceVersion int64
-	)
-	versions := clientResp.GetVersions()
-	for _, version := range versions {
-		if version.GetActive() {
-			serviceVersion = int64(version.GetNumber())
-			foundActive = true
-			break
-		}
-	}
+	var serviceVersion int64
 
-	if !foundActive {
-		// Use latest version if the user imports a service with no active versions.
-		serviceVersion = int64(versions[0].GetNumber())
+	// NOTE: Handle service version differently depending on import scenario.
+	//
+	// When importing a service there might be no prior 'serviceVersion' in state.
+	// If the user imports using the `ID@VERSION` syntax, then there will be.
+	// So we check if the attribute is null or not.
+	// If it's null, then we'll presume the user wants the last active version.
+	// Which we retrieve from the GetServiceDetail call.
+	// We fallback to the latest version if there is no prior active version.
+	// Otherwise we'll use whatever version they specified in their import.
+	if state.Version.IsNull() {
+		var foundActive bool
+		versions := clientResp.GetVersions()
+		for _, version := range versions {
+			if version.GetActive() {
+				serviceVersion = int64(version.GetNumber())
+				foundActive = true
+				break
+			}
+		}
+		if !foundActive {
+			// Use latest version if the user imports a service with no active versions.
+			serviceVersion = int64(versions[0].GetNumber())
+		}
+	} else {
+		serviceVersion = state.Version.ValueInt64()
 	}
 
 	api := helpers.API{
