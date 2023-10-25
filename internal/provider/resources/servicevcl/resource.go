@@ -4,6 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -12,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -139,16 +142,15 @@ func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, r
 // The service resource then iterates over all nested resources populating the
 // state for each nested resource.
 func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// TODO: req.ID needs to be checked for format.
-	// Typically just a Service ID but can also be <service id>@<service version>
-	// If the @<service_version> format is provided, then we need to parse the
-	// version and set it into the `version` attribute as well as `last_active`.
-
-	// The ImportStatePassthroughID() call is a small helper function that simply
-	// checks for an empty ID value passed (and errors accordingly) and if there
-	// is no error it calls `resp.State.SetAttribute()` passing in the ADDRESS
-	// (which we hardcode to the `id` attribute) and the user provided ID value.
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	id, version, found := strings.Cut(req.ID, "@")
+	if found {
+		v, err := strconv.ParseInt(version, 10, 64)
+		if err != nil {
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("version"), types.Int64Value(v))...)
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 
 	var state map[string]tftypes.Value
 	err := resp.State.Raw.As(&state)

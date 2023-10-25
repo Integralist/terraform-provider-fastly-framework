@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/fastly/fastly-go/fastly"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -53,26 +54,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	// NOTE: When importing a service there is no prior 'serviceVersion' in the state.
-	// So we presume the user wants to import the last active service serviceVersion.
-	// Which we retrieve from the GetServiceDetail call.
-	var (
-		foundActive    bool
-		serviceVersion int64
-	)
-	versions := clientResp.GetVersions()
-	for _, version := range versions {
-		if version.GetActive() {
-			serviceVersion = int64(version.GetNumber())
-			foundActive = true
-			break
-		}
-	}
-
-	if !foundActive {
-		// Use latest version if the user imports a service with no active versions.
-		serviceVersion = int64(versions[0].GetNumber())
-	}
+	serviceVersion := readServiceVersion(state, clientResp)
 
 	api := helpers.API{
 		Client:    r.client,
@@ -112,6 +94,45 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
+}
+
+// readServiceVersion returns the service version.
+//
+// The returned value depends on if we're in an import scenario.
+//
+// When importing a service there might be no prior 'serviceVersion' in state.
+// If the user imports using the `ID@VERSION` syntax, then there will be.
+// This is because `ImportState()` in ./resource.go makes sure it's set.
+//
+// So we check if the attribute is null or not.
+//
+// If it's null, then we'll presume the user wants the last active version.
+// Which we retrieve from the GetServiceDetail call.
+// We fallback to the latest version if there is no prior active version.
+//
+// Otherwise we'll use whatever version they specified in their import.
+func readServiceVersion(state *models.ServiceVCL, clientResp *fastly.ServiceDetail) int64 {
+	var serviceVersion int64
+
+	if state.Version.IsNull() {
+		var foundActive bool
+		versions := clientResp.GetVersions()
+		for _, version := range versions {
+			if version.GetActive() {
+				serviceVersion = int64(version.GetNumber())
+				foundActive = true
+				break
+			}
+		}
+		if !foundActive {
+			// Use latest version if the user imports a service with no active versions.
+			serviceVersion = int64(versions[0].GetNumber())
+		}
+	} else {
+		serviceVersion = state.Version.ValueInt64()
+	}
+
+	return serviceVersion
 }
 
 func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {
