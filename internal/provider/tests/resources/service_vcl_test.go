@@ -58,7 +58,7 @@ func TestAccResourceServiceVCL(t *testing.T) {
     }
     `, serviceName, domain2NameUpdated, domain1Name, domain1CommentAdded)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -164,7 +164,7 @@ func TestAccResourceServiceVCLDeletedAtCheck(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -239,7 +239,7 @@ func TestAccResourceServiceVCLImportServiceTypeCheck(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -283,7 +283,7 @@ func TestAccResourceServiceVCLImportServiceVersion(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
