@@ -19,7 +19,7 @@ import (
 func TestAccResourceServiceVCLStandardBehaviours(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
-	domain1CommentAdded := "a random updated comment"
+	domain1CommentAdded := "an added comment"
 	domain2Name := fmt.Sprintf("%s-tpff-2.integralist.co.uk", serviceName)
 	domain2NameUpdated := fmt.Sprintf("%s-tpff-2-updated.integralist.co.uk", serviceName)
 
@@ -128,11 +128,17 @@ func TestAccResourceServiceVCLStandardBehaviours(t *testing.T) {
 			// generated key won't match with the `example-<number>` key we've used in
 			// the earlier test config (see above). So to validate the import we use
 			// `ImportStateCheck` to manually validate the resources exist.
+			//
+			// Terraform's import testing sees that `last_active` was set previously
+			// but after importing it's no longer set. That's because we only set
+			// `last_active` if `activate=true` and during an import the computed
+			// attribute value (nor its default) is available. So we explicitly add
+			// it to the ImportStateVerifyIgnore list.
 			{
 				ResourceName:            "fastly_service_vcl.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"activate", "domain", "force_destroy"},
+				ImportStateVerifyIgnore: []string{"activate", "domain", "force_destroy", "last_active"},
 				ImportStateCheck: func(is []*terraform.InstanceState) error {
 					for _, s := range is {
 						if numDomains, ok := s.Attributes["domains.%"]; ok {
@@ -144,7 +150,7 @@ func TestAccResourceServiceVCLStandardBehaviours(t *testing.T) {
 					return nil
 				},
 			},
-			// Delete testing automatically occurs in TestCase
+			// Delete testing automatically occurs at the end of the TestCase.
 		},
 	})
 }
@@ -218,7 +224,7 @@ func TestAccResourceServiceVCLDeletedAtCheck(t *testing.T) {
 				),
 				ExpectNonEmptyPlan: true, // We expect a diff for creating our service.
 			},
-			// Delete testing automatically occurs in TestCase
+			// Delete testing automatically occurs at the end of the TestCase.
 		},
 	})
 }
@@ -239,9 +245,22 @@ func TestAccResourceServiceVCLImportServiceTypeCheck(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
+	apiClient := fastly.NewAPIClient(fastly.NewConfiguration())
+	ctx := fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
+
+	var computeServiceID string
+
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		CheckDestroy: func(*terraform.State) error {
+			deleteReq := apiClient.ServiceAPI.DeleteService(ctx, computeServiceID)
+			_, _, err := deleteReq.Execute()
+			if err != nil {
+				return fmt.Errorf("failed to delete service '%s' outside of Terraform: %w", computeServiceID, err)
+			}
+			return nil
+		},
 		Steps: []resource.TestStep{
 			// We need a resource to be created by Terraform so we can import into it.
 			{
@@ -252,18 +271,19 @@ func TestAccResourceServiceVCLImportServiceTypeCheck(t *testing.T) {
 				ResourceName: "fastly_service_vcl.test",
 				ImportState:  true,
 				ImportStateIdFunc: func(_ *terraform.State) (string, error) {
-					apiClient := fastly.NewAPIClient(fastly.NewConfiguration())
-					ctx := fastly.NewAPIKeyContextFromEnv(helpers.APIKeyEnv)
 					req := apiClient.ServiceAPI.CreateService(ctx)
 					resp, _, err := req.Name(fmt.Sprintf("tf-test-compute-service-%s", acctest.RandString(10))).ResourceType("wasm").Execute()
 					if err != nil {
 						return "", fmt.Errorf("failed to create Compute service: %w", err)
 					}
-					return *resp.ID, nil
+					computeServiceID = *resp.ID
+					return computeServiceID, nil
 				},
 				ExpectError: regexp.MustCompile(`Expected service type vcl, got: wasm`),
 			},
-			// Delete testing automatically occurs in TestCase
+			// Delete testing automatically occurs at the end of the TestCase.
+			// But when creating a resource outside of TF we have to manually delete.
+			// See CheckDestroy() function above.
 		},
 	})
 }
@@ -320,7 +340,173 @@ func TestAccResourceServiceVCLImportServiceVersion(t *testing.T) {
 					return nil
 				},
 			},
-			// Delete testing automatically occurs in TestCase
+			// Delete testing automatically occurs at the end of the TestCase.
+		},
+	})
+}
+
+// The following test validates two scenarios.
+//
+// The first is that when we have more than one service version, where the
+// latter version is not 'active' (because the user has set `activate=false`),
+// that we return and track that version instead of any prior active version.
+//
+// i.e. we're allowing for `version` attribute to drift from `last_active`.
+//
+// The second scenario is when we create a service with `activate=false`, so we
+// have a non-active version 1. We then make an update which triggers the
+// service version to be cloned (resulting in a non-active version 2). Because
+// there is no active service version, we'll track service version 2 while
+// last_active will be null as there is no prior active service version.
+func TestAccResourceServiceVCLStateDrift(t *testing.T) {
+	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
+	domain1CommentAdded := "an added comment"
+	domain1CommentUpdated := "an updated comment"
+	domain2Name := fmt.Sprintf("%s-tpff-2.integralist.co.uk", serviceName)
+
+	configCreate1 := configServiceVCLCreate(configServiceVCLCreateOpts{
+		activate:     true,
+		forceDestroy: true,
+		serviceName:  serviceName,
+		domain1Name:  domain1Name,
+		domain2Name:  domain2Name,
+	})
+
+	configCreate2 := configServiceVCLCreate(configServiceVCLCreateOpts{
+		activate:     false,
+		forceDestroy: true,
+		serviceName:  serviceName,
+		domain1Name:  domain1Name,
+		domain2Name:  domain2Name,
+	})
+
+	// Update the first domain's comment + set `activate = false`.
+	configUpdate1 := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      activate = false
+      force_destroy = true
+      name = "%s"
+
+      domains = {
+        "example-1" = {
+          name = "%s"
+          comment = "%s"
+        },
+        "example-2" = {
+          name = "%s"
+        },
+      }
+    }
+    `, serviceName, domain1Name, domain1CommentAdded, domain2Name)
+
+	// Update the first domain's comment.
+	configUpdate2 := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      activate = false
+      force_destroy = true
+      name = "%s"
+
+      domains = {
+        "example-1" = {
+          name = "%s"
+          comment = "%s"
+        },
+        "example-2" = {
+          name = "%s"
+        },
+      }
+    }
+    `, serviceName, domain1Name, domain1CommentUpdated, domain2Name)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { provider.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: configCreate1,
+			},
+			// Update and Read testing
+			{
+				Config: configUpdate1,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "last_active", "1"), // we expect `version` to drift from `last_active`
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "version", "2"),
+				),
+			},
+			// ImportState testing
+			//
+			// NOTE: This test case validates the default import behaviour.
+			// Which is to import the most recent active service version.
+			// i.e. There was a recently active service version (1) so we use it.
+			// Otherwise we would've ended up tracking the latest service version (2).
+			// The next import test will validate the latter scenario.
+			{
+				ResourceName:      "fastly_service_vcl.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// Terraform's import testing sees that `last_active` was set previously
+				// but after importing it's no longer set. That's because we only set
+				// `last_active` if `activate=true` and during an import the computed
+				// attribute value (nor its default) is available. So we explicitly add
+				// it to the ImportStateVerifyIgnore list.
+				//
+				// Similarly, in the last test step the `version` was set to `2` and so
+				// that's what the import test will try to validate will be the value
+				// after an import completes. But in this particular scenario, when
+				// we're importing we will attempt to track the more recent 'active'
+				// service version (which is version 1) and so we explicitly add
+				// `version` to the ImportStateVerifyIgnore list and instead use
+				// `ImportStateCheck` to validate the value is `1`.
+				ImportStateVerifyIgnore: []string{"activate", "domain", "force_destroy", "last_active", "version"},
+				ImportStateCheck: func(is []*terraform.InstanceState) error {
+					for _, s := range is {
+						if version, ok := s.Attributes["version"]; ok && version != "1" {
+							return fmt.Errorf("import failed: expected service version 1 (the last active): got %s", version)
+						}
+					}
+					return nil
+				},
+			},
+			// Delete resource by emptying the TF config
+			{
+				Config: `# can't use an empty string`,
+			},
+			// Create and Read testing
+			{
+				Config: configCreate2,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "last_active"), // expect `last_active` to be null
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "version", "1"),
+				),
+			},
+			// Update and Read testing
+			{
+				Config: configUpdate2,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("fastly_service_vcl.test", "last_active"), // expect `last_active` to be null
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "version", "2"),
+				),
+			},
+			// ImportState testing
+			//
+			// NOTE: This test case validates the 'no active version' behaviour.
+			// Which is we'll track the latest service version, not the last active.
+			// i.e. If `activate=false` then `last_active` is never set. Because
+			//
+			// Terraform's import test behaviour is to compare the imported state to
+			// the previous state, so as the last step test found `version` to be 2,
+			// this means we expect the imported state to match because the latest
+			// service version is 2 and that's what the import logic selected as there
+			// was no prior active service version.
+			{
+				ResourceName:            "fastly_service_vcl.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"activate", "domain", "force_destroy"},
+			},
+			// Delete testing automatically occurs at the end of the TestCase.
 		},
 	})
 }

@@ -142,6 +142,18 @@ func (r *Resource) Configure(_ context.Context, req resource.ConfigureRequest, r
 // The service resource then iterates over all nested resources populating the
 // state for each nested resource.
 func (r *Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// FIXME: Make sure we validate this in a test.
+	//
+	// To ensure nested resources don't continue to call the Fastly API to
+	// refresh the internal Terraform state, we set `imported` to true.
+	// It's set back to false in ./process_read.go
+	//
+	// We do this because it's slow and expensive to refresh the state for every
+	// nested resource if they've not even been defined in the user's TF config.
+	// But during an import we DO want to refresh all the state because we can't
+	// know up front what nested resources should exist.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("imported"), true)...)
+
 	id, version, found := strings.Cut(req.ID, "@")
 	if found {
 		v, err := strconv.ParseInt(version, 10, 64)

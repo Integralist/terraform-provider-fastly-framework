@@ -7,6 +7,8 @@ const (
 	ErrorAPIClient = "API Client Error"
 	// ErrorProvider indicates a Provider error.
 	ErrorProvider = "Provider Error"
+	// ErrorUnknown indicates an error incompatible with any other known scenario.
+	ErrorUnknown = "Unknown Error"
 	// ErrorUser indicates a User error.
 	ErrorUser = "User Error"
 )

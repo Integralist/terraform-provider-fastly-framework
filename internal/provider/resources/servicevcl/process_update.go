@@ -78,7 +78,7 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 		return
 	}
 
-	if nestedResourcesChanged {
+	if nestedResourcesChanged && plan.Activate.ValueBool() {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {

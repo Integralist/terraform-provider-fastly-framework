@@ -18,8 +18,12 @@ type ServiceVCL struct {
 	Domains map[string]Domain `tfsdk:"domains"`
 	// ForceDestroy ensures a service will be fully deleted upon `terraform destroy`.
 	ForceDestroy types.Bool `tfsdk:"force_destroy"`
+	// ForceRefresh ensures all nested resources will have their state refreshed.
+	ForceRefresh types.Bool `tfsdk:"force_refresh"`
 	// ID is a unique ID for the service.
 	ID types.String `tfsdk:"id"`
+	// Imported indicates the resource is being imported.
+	Imported types.Bool `tfsdk:"imported"`
 	// LastActive is the last known active service version.
 	LastActive types.Int64 `tfsdk:"last_active"`
 	// Name is the service name.
