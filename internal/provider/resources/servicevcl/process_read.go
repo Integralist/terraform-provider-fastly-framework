@@ -61,7 +61,14 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		ClientCtx: r.clientCtx,
 	}
 
-	// IMPORTANT: nestedResources are expected to mutate the plan data.
+	// IMPORTANT: nestedResources are expected to mutate the `req` plan data.
+	//
+	// We really should modify the `state` variable instead.
+	// The reason we don't do this is for interface consistency.
+	// i.e. The interfaces.Resource.Read() can have a consistent type.
+	// This is because the `state` variable type can change based on the resource.
+	// e.g. `models.ServiceVCL` or `models.ServiceCompute`.
+	// See `readSettings()` for an example of directly modifying `state`.
 	for _, nestedResource := range r.nestedResources {
 		serviceData := helpers.Service{
 			ID:      clientResp.GetID(),
@@ -72,8 +79,8 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		}
 	}
 
-	// Refresh the Terraform state data inside the model.
-	// As the state is expected to be mutated by nested resources.
+	// Sync the Terraform `state` data.
+	// As the `req` state is expected to be mutated by nested resources.
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -90,7 +97,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	// Save the updated state data back into Terraform state.
+	// Save the final `state` data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
