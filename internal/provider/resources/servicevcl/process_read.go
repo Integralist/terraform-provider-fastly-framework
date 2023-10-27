@@ -121,6 +121,15 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 func readServiceVersion(state *models.ServiceVCL, clientResp *fastly.ServiceDetail) int64 {
 	var serviceVersion int64
 
+	// This is the 'import without version' scenario.
+	//
+	// The Read() flow only gets executed after resources exist in the state
+	// (and we know a service resource will always have a version) or if the user
+	// is importing the resource (where upon there is no prior state and so the
+	// version field will be null).
+	//
+	// The only caveat to that is if the user specifies a version when importing.
+	// In that case, they'll end up in the `else` block below.
 	if state.Version.IsNull() {
 		var foundActive bool
 		versions := clientResp.GetVersions()
@@ -136,6 +145,10 @@ func readServiceVersion(state *models.ServiceVCL, clientResp *fastly.ServiceDeta
 			serviceVersion = int64(versions[0].GetNumber())
 		}
 	} else {
+		// This is the standard flow which is reached either when the user has a
+		// plan and there is already this resource in the state (and we know a
+		// service resource will always have a version) or if the user is importing
+		// the resource WITH a service version specified.
 		serviceVersion = state.Version.ValueInt64()
 	}
 
