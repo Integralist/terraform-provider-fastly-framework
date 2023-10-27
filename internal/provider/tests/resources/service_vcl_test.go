@@ -16,7 +16,7 @@ import (
 
 // The following test validates the standard service behaviours.
 // e.g. creating/updating the resource and nested resources.
-func TestAccResourceServiceVCL(t *testing.T) {
+func TestAccResourceServiceVCLStandardBehaviours(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
 	domain1CommentAdded := "a random updated comment"
