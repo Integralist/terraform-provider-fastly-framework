@@ -25,7 +25,7 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		return
 	}
 
-	if (state.ForceDestroy.ValueBool() || state.Reuse.ValueBool()) && state.Activate.ValueBool() {
+	if state.ForceDestroy.ValueBool() || state.Reuse.ValueBool() {
 		clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())
 		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -40,14 +40,17 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			return
 		}
 
-		version := *clientResp.GetActiveVersion().Number
+		var activeVersion int32
+		if clientResp.GetActiveVersion().Number != nil {
+			activeVersion = *clientResp.GetActiveVersion().Number
+		}
 
-		if version != 0 {
-			clientReq := r.client.VersionAPI.DeactivateServiceVersion(r.clientCtx, state.ID.ValueString(), version)
+		if activeVersion != 0 {
+			clientReq := r.client.VersionAPI.DeactivateServiceVersion(r.clientCtx, state.ID.ValueString(), activeVersion)
 			_, httpResp, err := clientReq.Execute()
 			if err != nil {
 				tflog.Trace(ctx, "Fastly VersionAPI.DeactivateServiceVersion error", map[string]any{"http_resp": httpResp})
-				resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to deactivate service version %d, got error: %s", version, err))
+				resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to deactivate service version %d, got error: %s", activeVersion, err))
 				return
 			}
 			defer httpResp.Body.Close()

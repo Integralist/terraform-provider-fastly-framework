@@ -36,7 +36,9 @@ The Service resource requires a domain name configured to direct traffic to the 
 
 ### Read-Only
 
+- `force_refresh` (Boolean) Used internally by the provider to temporarily indicate if all resources should call their associated API to update the local state. This is for scenarios where the service version has been reverted outside of Terraform (e.g. via the Fastly UI) and the provider needs to resync the state for a different active version (this is only if `activate` is `true`)
 - `id` (String) Alphanumeric string identifying the service
+- `imported` (Boolean) Used internally by the provider to temporarily indicate if the service is being imported, and is reset to false once the import is finished
 - `last_active` (Number) The last 'active' service version (typically in-sync with `version` but not if `activate` is `false`)
 - `version` (Number) The latest version that the provider will clone from (typically in-sync with `last_active` but not if `activate` is `false`)
 

@@ -6,6 +6,16 @@ type Service struct {
 	ID string
 	// Version is the current version for the Fastly service.
 	Version int32
+
+	// TODO: Consider updating the fastly-go API client to use int64.
+	//
+	// This is because Terraform doesn't support int32 (https://github.com/hashicorp/terraform-plugin-framework/issues/801).
+	// The change would be more to help the readability of the Terraform provider code.
+	// As we wouldn't need the visual noise of constantly converting between 32 and 64 types.
+	//
+	// Although, strictly speaking, downsizing an int64 to int32 could cause data
+	// loss, the reality is an int32 largest value is 2,147,483,647 and it's
+	// doubtful that a user service will contain that many versions (in practice).
 }
 
 // ServiceType is a base for the different service variants.

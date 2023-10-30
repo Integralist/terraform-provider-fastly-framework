@@ -10,8 +10,12 @@ import (
 
 // Service returns the common schema attributes between VCL/Compute services.
 //
-// NOTE: Some optional attributes are also 'computed' so we can set a default.
+// NOTE: Some 'optional' attributes are also 'computed' so we can set a default.
 // This is a requirement enforced on us by Terraform.
+//
+// NOTE: Some 'computed' attributes require a default to avoid test errors.
+// If we don't set a default, the Create/Update methods have to explicitly set a
+// value for the computed attributes. It's cleaner/easier to just set defaults.
 func Service() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"activate": schema.BoolAttribute{
@@ -46,6 +50,11 @@ func Service() map[string]schema.Attribute {
 			MarkdownDescription: "Services that are active cannot be destroyed. In order to destroy the service, set `force_destroy` to `true`. Default `false`",
 			Optional:            true,
 		},
+		"force_refresh": schema.BoolAttribute{
+			Computed:            true,
+			Default:             booldefault.StaticBool(false),
+			MarkdownDescription: "Used internally by the provider to temporarily indicate if all resources should call their associated API to update the local state. This is for scenarios where the service version has been reverted outside of Terraform (e.g. via the Fastly UI) and the provider needs to resync the state for a different active version (this is only if `activate` is `true`)",
+		},
 		"id": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "Alphanumeric string identifying the service",
@@ -54,6 +63,11 @@ func Service() map[string]schema.Attribute {
 				// outputs for computed attributes which are known to not change over time.
 				stringplanmodifier.UseStateForUnknown(),
 			},
+		},
+		"imported": schema.BoolAttribute{
+			Computed:            true,
+			Default:             booldefault.StaticBool(false),
+			MarkdownDescription: "Used internally by the provider to temporarily indicate if the service is being imported, and is reset to false once the import is finished",
 		},
 		"last_active": schema.Int64Attribute{
 			Computed:            true,

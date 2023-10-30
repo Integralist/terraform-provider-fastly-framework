@@ -54,26 +54,52 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	serviceVersion := readServiceVersion(state, clientResp)
+	remoteServiceVersion, err := readServiceVersion(state, clientResp)
+	if err != nil {
+		tflog.Trace(ctx, "Fastly service version identification error", map[string]any{"state": state, "service_details": clientResp, "error": err})
+		resp.Diagnostics.AddError(helpers.ErrorUnknown, err.Error())
+		return
+	}
+
+	// If the user has indicated they want their service to be 'active', then we
+	// presume when refreshing the state that we should be dealing with a service
+	// version that is active. If the prior state has a `version` field that
+	// doesn't match the current latest active version, then this suggests that
+	// the service versions have drifted outside of Terraform.
+	//
+	// e.g. a user has reverted the service version to another version via the UI.
+	//
+	// In this scenario, we'll set `force_refresh=true` so that the nested
+	// resources will call the Fastly API to get updated state information.
+	if state.Activate.ValueBool() && state.Version != types.Int64Value(remoteServiceVersion) {
+		state.ForceRefresh = types.BoolValue(true)
+	}
 
 	api := helpers.API{
 		Client:    r.client,
 		ClientCtx: r.clientCtx,
 	}
 
-	// IMPORTANT: nestedResources are expected to mutate the plan data.
+	// IMPORTANT: nestedResources are expected to mutate the `req` plan data.
+	//
+	// We really should modify the `state` variable instead.
+	// The reason we don't do this is for interface consistency.
+	// i.e. The interfaces.Resource.Read() can have a consistent type.
+	// This is because the `state` variable type can change based on the resource.
+	// e.g. `models.ServiceVCL` or `models.ServiceCompute`.
+	// See `readSettings()` for an example of directly modifying `state`.
 	for _, nestedResource := range r.nestedResources {
 		serviceData := helpers.Service{
 			ID:      clientResp.GetID(),
-			Version: int32(serviceVersion),
+			Version: int32(remoteServiceVersion),
 		}
 		if err := nestedResource.Read(ctx, &req, resp, api, &serviceData); err != nil {
 			return
 		}
 	}
 
-	// Refresh the Terraform state data inside the model.
-	// As the state is expected to be mutated by nested resources.
+	// Sync the Terraform `state` data.
+	// As the `req` state is expected to be mutated by nested resources.
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -82,15 +108,35 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	state.Comment = types.StringValue(clientResp.GetComment())
 	state.ID = types.StringValue(clientResp.GetID())
 	state.Name = types.StringValue(clientResp.GetName())
-	state.Version = types.Int64Value(serviceVersion)
-	state.LastActive = types.Int64Value(serviceVersion)
+	state.Version = types.Int64Value(remoteServiceVersion)
 
-	err = readSettings(ctx, state, resp, api)
+	// We set `last_active` to align with `version` only if `activate = true` or
+	// if we're importing (i.e. `activate` will be null). This is because we only
+	// expect `version` to drift from `last_active` if `activate = false`.
+	if state.Activate.ValueBool() {
+		state.LastActive = types.Int64Value(remoteServiceVersion)
+	}
+
+	err = readServiceSettings(ctx, remoteServiceVersion, state, resp, api)
 	if err != nil {
 		return
 	}
 
-	// Save the updated state data back into Terraform state.
+	// To ensure nested resources don't continue to call the Fastly API to
+	// refresh the internal Terraform state, we set `imported`/`force_refresh`
+	// back to false.
+	//
+	// `force_refresh` is set to true earlier in this method.
+	// `imported` is set to true when `ImportState()` is called in ./resource.go
+	//
+	// We do this because it's slow and expensive to refresh the state for every
+	// nested resource if they've not even been defined in the user's TF config.
+	// But during an import we DO want to refresh all the state because we can't
+	// know up front what nested resources should exist.
+	state.ForceRefresh = types.BoolValue(false)
+	state.Imported = types.BoolValue(false)
+
+	// Save the final `state` data back into Terraform state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Debug(ctx, "Read", map[string]any{"state": fmt.Sprintf("%#v", state)})
@@ -98,49 +144,90 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 
 // readServiceVersion returns the service version.
 //
-// The returned value depends on if we're in an import scenario.
+// The returned values depends on if we're in an import scenario.
 //
-// When importing a service there might be no prior 'serviceVersion' in state.
+// When importing a service there might be no prior `version` in state.
 // If the user imports using the `ID@VERSION` syntax, then there will be.
 // This is because `ImportState()` in ./resource.go makes sure it's set.
 //
-// So we check if the attribute is null or not.
+// So we check if `imported` is set and if the `version` attribute is not null.
+// If these conditions are true we'll check the specified version exists.
+// (see `versionFromImport()` for details).
 //
-// If it's null, then we'll presume the user wants the last active version.
-// Which we retrieve from the GetServiceDetail call.
-// We fallback to the latest version if there is no prior active version.
-//
-// Otherwise we'll use whatever version they specified in their import.
-func readServiceVersion(state *models.ServiceVCL, clientResp *fastly.ServiceDetail) int64 {
-	var serviceVersion int64
+// If the conditions aren't met, then we'll call the Fastly API to get all
+// available service versions, and then we'll figure out which version we want
+// to return (see `versionFromRemote()` for details).
+func readServiceVersion(state *models.ServiceVCL, serviceDetailsResp *fastly.ServiceDetail) (serviceVersion int64, err error) {
+	if state.Imported.ValueBool() && !state.Version.IsNull() {
+		serviceVersion, err = versionFromImport(state, serviceDetailsResp)
+	} else {
+		serviceVersion, err = versionFromAttr(state, serviceDetailsResp)
+	}
+	return serviceVersion, err
+}
 
-	if state.Version.IsNull() {
-		var foundActive bool
-		versions := clientResp.GetVersions()
+// versionFromImport returns import specified service version.
+// It will validate the version specified actually exists remotely.
+func versionFromImport(state *models.ServiceVCL, serviceDetailsResp *fastly.ServiceDetail) (serviceVersion int64, err error) {
+	serviceVersion = state.Version.ValueInt64() // whatever version the user specified in their import
+	versions := serviceDetailsResp.GetVersions()
+	var foundVersion bool
+	for _, version := range versions {
+		if int64(version.GetNumber()) == serviceVersion {
+			foundVersion = true
+			break
+		}
+	}
+	if !foundVersion {
+		err = fmt.Errorf("failed to find version '%d' remotely", serviceVersion)
+	}
+	return serviceVersion, err
+}
+
+// versionFromAttr returns the service version based on `activate` attribute.
+// If `activate = true`, then we return the latest 'active' service version.
+// If `activate = false` we return the latest version. This allows state drift.
+func versionFromAttr(state *models.ServiceVCL, serviceDetailsResp *fastly.ServiceDetail) (serviceVersion int64, err error) {
+	versions := serviceDetailsResp.GetVersions()
+	size := len(versions)
+	switch {
+	case size == 0:
+		err = errors.New("failed to find any service versions remotely")
+	case state.Activate.IsNull():
+		fallthrough // when importing `activate` doesn't have its default value set so we default to importing the latest 'active' version.
+	case state.Activate.ValueBool():
+		var foundVersion bool
 		for _, version := range versions {
 			if version.GetActive() {
 				serviceVersion = int64(version.GetNumber())
-				foundActive = true
+				foundVersion = true
 				break
 			}
 		}
-		if !foundActive {
-			// Use latest version if the user imports a service with no active versions.
-			serviceVersion = int64(versions[0].GetNumber())
+		if !foundVersion {
+			// If we're importing a service, then we don't have `activate` value.
+			// So if there's no active version to use, fallback the latest version.
+			if state.Imported.ValueBool() {
+				serviceVersion = getLatestServiceVersion(size-1, versions)
+			} else {
+				err = errors.New("failed to find active version remotely")
+			}
 		}
-	} else {
-		serviceVersion = state.Version.ValueInt64()
+	default:
+		// If `activate = false` then we expect state drift and will pull in the
+		// latest version available (regardless of if it's active or not).
+		serviceVersion = getLatestServiceVersion(size-1, versions)
 	}
-
-	return serviceVersion
+	return serviceVersion, err
 }
 
-func readSettings(ctx context.Context, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {
+func getLatestServiceVersion(i int, versions []fastly.SchemasVersionResponse) int64 {
+	return int64(versions[i].GetNumber())
+}
+
+func readServiceSettings(ctx context.Context, serviceVersion int64, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {
 	serviceID := state.ID.ValueString()
-	serviceVersion := int32(state.Version.ValueInt64())
-
-	clientReq := api.Client.SettingsAPI.GetServiceSettings(api.ClientCtx, serviceID, serviceVersion)
-
+	clientReq := api.Client.SettingsAPI.GetServiceSettings(api.ClientCtx, serviceID, int32(serviceVersion))
 	readErr := errors.New("failed to read service settings")
 
 	clientResp, httpResp, err := clientReq.Execute()

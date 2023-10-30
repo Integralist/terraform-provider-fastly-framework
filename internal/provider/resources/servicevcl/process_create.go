@@ -58,8 +58,6 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 	}
 
 	if plan.Activate.ValueBool() {
-		plan.LastActive = plan.Version
-
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, serviceID, serviceVersion)
 		_, httpResp, err := clientReq.Execute()
 		if err != nil {
@@ -68,6 +66,9 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 			return
 		}
 		defer httpResp.Body.Close()
+
+		// Only set LastActive to Version if we successfully activate the service.
+		plan.LastActive = plan.Version
 	}
 
 	// Save the planned changes into Terraform state.
