@@ -110,9 +110,8 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	state.Name = types.StringValue(clientResp.GetName())
 	state.Version = types.Int64Value(remoteServiceVersion)
 
-	// We set `last_active` to align with `version` only if `activate = true` or
-	// if we're importing (i.e. `activate` will be null). This is because we only
-	// expect `version` to drift from `last_active` if `activate = false`.
+	// We set `last_active` to align with `version` only if `activate=true`.
+	// We only expect `version` to drift from `last_active` if `activate=false`.
 	if state.Activate.ValueBool() {
 		state.LastActive = types.Int64Value(remoteServiceVersion)
 	}
@@ -185,8 +184,8 @@ func versionFromImport(state *models.ServiceVCL, serviceDetailsResp *fastly.Serv
 }
 
 // versionFromAttr returns the service version based on `activate` attribute.
-// If `activate = true`, then we return the latest 'active' service version.
-// If `activate = false` we return the latest version. This allows state drift.
+// If `activate=true`, then we return the latest 'active' service version.
+// If `activate=false` we return the latest version. This allows state drift.
 func versionFromAttr(state *models.ServiceVCL, serviceDetailsResp *fastly.ServiceDetail) (serviceVersion int64, err error) {
 	versions := serviceDetailsResp.GetVersions()
 	size := len(versions)
@@ -214,7 +213,7 @@ func versionFromAttr(state *models.ServiceVCL, serviceDetailsResp *fastly.Servic
 			}
 		}
 	default:
-		// If `activate = false` then we expect state drift and will pull in the
+		// If `activate=false` then we expect state drift and will pull in the
 		// latest version available (regardless of if it's active or not).
 		serviceVersion = getLatestServiceVersion(size-1, versions)
 	}

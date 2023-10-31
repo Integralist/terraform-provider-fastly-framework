@@ -381,7 +381,7 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
-	// Update the first domain's comment + set `activate = false`.
+	// Update the first domain's comment + set `activate=false`.
 	configUpdate1 := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       activate = false
