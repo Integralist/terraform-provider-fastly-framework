@@ -80,13 +80,16 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 
 	if nestedResourcesChanged && plan.Activate.ValueBool() {
 		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
-		_, httpResp, err := clientReq.Execute()
+		clientResp, httpResp, err := clientReq.Execute()
 		if err != nil {
 			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
 			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
 		defer httpResp.Body.Close()
+
+		// Only set LastActive if we successfully activate the service.
+		plan.LastActive = types.Int64Value(int64(clientResp.GetNumber()))
 	}
 
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
