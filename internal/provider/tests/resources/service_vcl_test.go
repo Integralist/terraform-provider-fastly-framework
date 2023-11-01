@@ -345,7 +345,7 @@ func TestAccResourceServiceVCLImportServiceVersion(t *testing.T) {
 	})
 }
 
-// The following test validates two scenarios.
+// The following test validates two state drift scenarios.
 //
 // The first is that when we have more than one service version, where the
 // latter version is not 'active' (because the user has set `activate=false`),
@@ -381,7 +381,9 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
 		domain2Name:  domain2Name,
 	})
 
-	// Update the first domain's comment + set `activate=false`.
+	// Update the first domain by adding a comment + set `activate=false`.
+	// This will result in a new service version that's inactive.
+	// We want Terraform to be tracking this version and not the active version.
 	configUpdate1 := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       activate = false
@@ -401,6 +403,8 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
     `, serviceName, domain1Name, domain1CommentAdded, domain2Name)
 
 	// Update the first domain's comment.
+	// This will result in a new service version that's inactive.
+	// We want Terraform to be tracking this version and not the prior inactive version.
 	configUpdate2 := fmt.Sprintf(`
     resource "fastly_service_vcl" "test" {
       activate = false
@@ -418,6 +422,28 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
       }
     }
     `, serviceName, domain1Name, domain1CommentUpdated, domain2Name)
+
+	// Update the first domain by adding a comment.
+	// This will result in a new service version that's active.
+	// We'll then cause a side-effect that re-activates version 1.
+	// We want Terraform to track version=1 and last_active=2.
+	configUpdate3 := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      activate = true
+      force_destroy = true
+      name = "%s"
+
+      domains = {
+        "example-1" = {
+          name = "%s"
+          comment = "%s"
+        },
+        "example-2" = {
+          name = "%s"
+        },
+      }
+    }
+    `, serviceName, domain1Name, domain1CommentAdded, domain2Name)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { provider.TestAccPreCheck(t) },
@@ -493,7 +519,7 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
 			//
 			// NOTE: This test case validates the 'no active version' behaviour.
 			// Which is we'll track the latest service version, not the last active.
-			// i.e. If `activate=false` then `last_active` is never set. Because
+			// i.e. If `activate=false` then `last_active` is never set.
 			//
 			// Terraform's import test behaviour is to compare the imported state to
 			// the previous state, so as the last step test found `version` to be 2,
@@ -505,6 +531,26 @@ func TestAccResourceServiceVCLStateDrift(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"activate", "domain", "force_destroy"},
+			},
+			// Delete resource by emptying the TF config
+			{
+				Config: `# can't use an empty string`,
+			},
+			// Create and Read testing
+			{
+				Config: configCreate1,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "last_active", "1"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "version", "1"),
+				),
+			},
+			// Update and Read testing
+			{
+				Config: configUpdate3,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "last_active", "2"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "version", "2"),
+				),
 			},
 			// Delete testing automatically occurs at the end of the TestCase.
 		},
