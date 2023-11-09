@@ -93,7 +93,9 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	}
 
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
-	// So we update them once the service itself has been activated.
+	// In the old Terraform provider implementation we only updated if `activate`
+	// was set to `true` but it's unclear why as recent testing shows that it
+	// works regardless of whether the service is active or not.
 	err = updateServiceAttributes(ctx, plan, resp, api, state)
 	if err != nil {
 		return

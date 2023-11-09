@@ -155,6 +155,69 @@ func TestAccResourceServiceVCLStandardBehaviours(t *testing.T) {
 	})
 }
 
+// The following test validates that versionless attributes can be updated even
+// when the service itself is inactive.
+func TestAccResourceServiceVCLInactiveVersionlessAttributeUpdates(t *testing.T) {
+	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	serviceNameUpdated := serviceName + "-updated"
+	serviceComment := "an updated service comment"
+	domain1Name := fmt.Sprintf("%s-tpff-1.integralist.co.uk", serviceName)
+	domain2Name := fmt.Sprintf("%s-tpff-2.integralist.co.uk", serviceName)
+
+	configCreate := configServiceVCLCreate(configServiceVCLCreateOpts{
+		activate:     false,
+		forceDestroy: true,
+		serviceName:  serviceName,
+		domain1Name:  domain1Name,
+		domain2Name:  domain2Name,
+	})
+
+	// Update the service name and the comment from its default value.
+	configUpdate := fmt.Sprintf(`
+    resource "fastly_service_vcl" "test" {
+      activate = false
+      comment = "%s"
+      name = "%s"
+      force_destroy = true
+
+      domains = {
+        "example-1" = {
+          name = "%s"
+        },
+        "example-2" = {
+          name = "%s"
+        },
+      }
+    }
+    `, serviceComment, serviceNameUpdated, domain1Name, domain2Name)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { provider.TestAccPreCheck(t) },
+		ProtoV6ProviderFactories: provider.TestAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: configCreate,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "activate", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", "Managed by Terraform"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "name", serviceName),
+				),
+			},
+			// Update and Read testing
+			{
+				Config: configUpdate,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "activate", "false"),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "comment", serviceComment),
+					resource.TestCheckResourceAttr("fastly_service_vcl.test", "name", serviceNameUpdated),
+				),
+			},
+			// Delete testing automatically occurs at the end of the TestCase.
+		},
+	})
+}
+
 // The following test validates the service deleted_at behaviour.
 // i.e. if deleted_at is not empty, then remove the service resource.
 func TestAccResourceServiceVCLDeletedAtCheck(t *testing.T) {
