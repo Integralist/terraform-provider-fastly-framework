@@ -11,6 +11,8 @@ Terraform doesn't have a concept of 'nested' resources, and so to workaround tha
 - *UPDATE:* Runs every time for top-level and nested resource + CREATE/DELETE for nested resources.
 - *DELETE:* Runs every time for top-level resources.
 
+> To see the genesis of this design from the perspective of the _original_ provider, read [this](https://github.com/fastly/terraform-provider-fastly/blob/main/DEVELOPMENT.md).
+
 ## Handling errors with nested attributes.
 
 With the original Fastly Terraform provider we had [this issue](https://github.com/fastly/terraform-provider-fastly/issues/631) related to the design of the provider using set 'blocks' to represent a nested resource (even though Terraform has no concept of a nested resource and expects a resource to be a 1:1 mapping with a single API endpoint).
