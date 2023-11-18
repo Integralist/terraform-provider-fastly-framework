@@ -21,6 +21,9 @@ docs: ## Generate documentation
 lint: ## Run golangci-lint
 	golangci-lint run --verbose
 
+nilaway: ## Run nilaway
+	@nilaway ./...
+
 testacc: ## Run acceptance tests
 	TF_ACC=1 $(TEST_COMMAND) ./... -v $(TESTARGS) -timeout 120m
 
