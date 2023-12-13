@@ -24,6 +24,11 @@ func (r *Resource) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if state == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, "nil pointer after state population")
+		return
+	}
 
 	if state.ForceDestroy.ValueBool() || state.Reuse.ValueBool() {
 		clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())

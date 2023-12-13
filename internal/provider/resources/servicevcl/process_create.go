@@ -45,6 +45,11 @@ func (r *Resource) Create(ctx context.Context, req resource.CreateRequest, resp 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if plan == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, "nil pointer after plan population")
+		return
+	}
 
 	plan.ID = types.StringValue(serviceID)
 	plan.Version = types.Int64Value(int64(serviceVersion))
@@ -89,6 +94,12 @@ func createService(
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return "", 0, errors.New("failed to read Terraform plan")
+	}
+	if plan == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		msg := "nil pointer after plan population"
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, msg)
+		return "", 0, fmt.Errorf("%s: %s", helpers.ErrorTerraformPointer, msg)
 	}
 
 	clientReq := api.Client.ServiceAPI.CreateService(api.ClientCtx)

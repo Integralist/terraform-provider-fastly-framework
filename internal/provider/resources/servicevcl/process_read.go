@@ -27,6 +27,11 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if state == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, "nil pointer after state population")
+		return
+	}
 
 	clientReq := r.client.ServiceAPI.GetServiceDetail(r.clientCtx, state.ID.ValueString())
 	clientResp, httpResp, err := clientReq.Execute()
@@ -105,16 +110,7 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 		return
 	}
 
-	state.Comment = types.StringValue(clientResp.GetComment())
-	state.ID = types.StringValue(clientResp.GetID())
-	state.Name = types.StringValue(clientResp.GetName())
-	state.Version = types.Int64Value(remoteServiceVersion)
-
-	// We set `last_active` to align with `version` only if `activate=true`.
-	// We only expect `version` to drift from `last_active` if `activate=false`.
-	if state.Activate.ValueBool() {
-		state.LastActive = types.Int64Value(remoteServiceVersion)
-	}
+	setServiceState(state, clientResp, remoteServiceVersion)
 
 	err = readServiceSettings(ctx, remoteServiceVersion, state, resp, api)
 	if err != nil {
@@ -222,6 +218,20 @@ func versionFromAttr(state *models.ServiceVCL, serviceDetailsResp *fastly.Servic
 
 func getLatestServiceVersion(i int, versions []fastly.SchemasVersionResponse) int64 {
 	return int64(versions[i].GetNumber())
+}
+
+// setServiceState mutates the resource state with service data from the API.
+func setServiceState(state *models.ServiceVCL, clientResp *fastly.ServiceDetail, remoteServiceVersion int64) {
+	state.Comment = types.StringValue(clientResp.GetComment())
+	state.ID = types.StringValue(clientResp.GetID())
+	state.Name = types.StringValue(clientResp.GetName())
+	state.Version = types.Int64Value(remoteServiceVersion)
+
+	// We set `last_active` to align with `version` only if `activate=true`.
+	// We only expect `version` to drift from `last_active` if `activate=false`.
+	if state.Activate.ValueBool() {
+		state.LastActive = types.Int64Value(remoteServiceVersion)
+	}
 }
 
 func readServiceSettings(ctx context.Context, serviceVersion int64, state *models.ServiceVCL, resp *resource.ReadResponse, api helpers.API) error {

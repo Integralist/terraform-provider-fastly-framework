@@ -30,10 +30,20 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if plan == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, "nil pointer after plan population")
+		return
+	}
 
 	var state *models.ServiceVCL
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if state == nil {
+		tflog.Trace(ctx, helpers.ErrorTerraformPointer, map[string]any{"req": req, "resp": resp})
+		resp.Diagnostics.AddError(helpers.ErrorTerraformPointer, "nil pointer after state population")
 		return
 	}
 
@@ -79,17 +89,11 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	}
 
 	if nestedResourcesChanged && plan.Activate.ValueBool() {
-		clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, plan.ID.ValueString(), serviceVersion)
-		clientResp, httpResp, err := clientReq.Execute()
+		latestVersion, err := activateService(ctx, plan.ID.ValueString(), serviceVersion, r, resp)
 		if err != nil {
-			tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
-			resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
 			return
 		}
-		defer httpResp.Body.Close()
-
-		// Only set LastActive if we successfully activate the service.
-		plan.LastActive = types.Int64Value(int64(clientResp.GetNumber()))
+		plan.LastActive = types.Int64Value(latestVersion)
 	}
 
 	// NOTE: The service attributes (Name, Comment) are 'versionless'.
@@ -108,6 +112,10 @@ func (r *Resource) Update(ctx context.Context, req resource.UpdateRequest, resp 
 }
 
 func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags diag.Diagnostics, api helpers.API) error {
+	if plan == nil {
+		return fmt.Errorf("unexpected nil for pointer argument type: %T", plan)
+	}
+
 	serviceID := plan.ID.ValueString()
 	serviceVersion := int32(plan.Version.ValueInt64())
 
@@ -143,6 +151,25 @@ func updateServiceSettings(ctx context.Context, plan *models.ServiceVCL, diags d
 	}
 
 	return nil
+}
+
+// activateService activates the service and updates the plan's LastActive.
+func activateService(
+	ctx context.Context,
+	serviceID string,
+	serviceVersion int32,
+	r *Resource,
+	resp *resource.UpdateResponse,
+) (int64, error) {
+	clientReq := r.client.VersionAPI.ActivateServiceVersion(r.clientCtx, serviceID, serviceVersion)
+	clientResp, httpResp, err := clientReq.Execute()
+	if err != nil {
+		tflog.Trace(ctx, "Fastly VersionAPI.ActivateServiceVersion error", map[string]any{"http_resp": httpResp})
+		resp.Diagnostics.AddError(helpers.ErrorAPIClient, fmt.Sprintf("Unable to activate service version %d, got error: %s", 1, err))
+		return 0, err
+	}
+	defer httpResp.Body.Close()
+	return int64(clientResp.GetNumber()), nil
 }
 
 func determineChangesInNestedResources(
@@ -194,6 +221,10 @@ func updateServiceAttributes(
 	api helpers.API,
 	state *models.ServiceVCL,
 ) error {
+	if plan == nil || resp == nil || state == nil {
+		return errors.New("unexpected nil for pointer argument type")
+	}
+
 	// NOTE: UpdateService doesn't take a version because its attributes are versionless.
 	clientReq := api.Client.ServiceAPI.UpdateService(api.ClientCtx, plan.ID.ValueString())
 	if !plan.Comment.Equal(state.Comment) {
