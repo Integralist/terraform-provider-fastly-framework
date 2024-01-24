@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/fastly/fastly-go v1.0.0-beta.25
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.17.0
 	github.com/hashicorp/terraform-plugin-framework v1.4.2
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
