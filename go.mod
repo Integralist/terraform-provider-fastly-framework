@@ -3,7 +3,7 @@ module github.com/integralist/terraform-provider-fastly-framework
 go 1.21
 
 require (
-	github.com/fastly/fastly-go v1.0.0-beta.25
+	github.com/fastly/fastly-go v1.0.0-beta.26
 	github.com/google/uuid v1.5.0
 	github.com/hashicorp/terraform-plugin-docs v0.17.0
 	github.com/hashicorp/terraform-plugin-framework v1.4.2
